@@ -31,6 +31,7 @@ header.top {
 }
 header.top h1 { font-size: 18px; margin: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #status { font-size: 12px; color: var(--muted); white-space: nowrap; }
+@media (max-width: 560px) { #status { display: none; } header.top { gap: 8px; } }
 button, input, select, textarea { font: inherit; color: inherit; }
 button {
   background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
@@ -106,6 +107,7 @@ dialog.dlg textarea { min-height: 180px; resize: vertical; }
 <header class="top">
   <h1>Notenbuch</h1>
   <span id="status"></span>
+  <button id="btnSync">Abgleich aus</button>
   <button id="btnBackup">Sicherung</button>
 </header>
 <nav class="tabs" id="classTabs"></nav>
@@ -128,7 +130,8 @@ function load() {
   return emptyState();
 }
 let S = load();
-function save() {
+function save() { saveLocal(); markDirty(); }
+function saveLocal() {
   try {
     localStorage.setItem(KEY, JSON.stringify(S));
     setStatus('Gespeichert ' + new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }));
@@ -196,8 +199,10 @@ function mergeState(a, b) {
   const out = Object.assign(emptyState(), a, { deleted });
   out.classes = mergeList(a.classes, b.classes || [], deleted, (x, y) => {
     const top = newer(x, y);
-    return { id: x.id, name: top.name, m: top.m,
-      students: mergeList(x.students, y.students, deleted, newer),
+    // Reihenfolge der Schüler: Es gilt die Seite, auf der zuletzt sortiert wurde.
+    const yFirst = (y.orderM || '') > (x.orderM || '');
+    return { id: x.id, name: top.name, m: top.m, orderM: yFirst ? y.orderM : x.orderM,
+      students: yFirst ? mergeList(y.students, x.students, deleted, newer) : mergeList(x.students, y.students, deleted, newer),
       tabs: mergeList(x.tabs, y.tabs, deleted, (p, q) => mergeTab(p, q, deleted)) };
   });
   const sNew = newer(a.settings || {}, b.settings || {});
@@ -419,7 +424,7 @@ function renderStudents(panel, cls) {
     h('div', { class: 'bar' },
       inp, h('button', { onclick: add }, 'Hinzufügen'),
       h('button', { class: 'primary', onclick: () => importStudents(cls) }, 'Namensliste importieren'),
-      h('button', { onclick: () => { cls.students.sort((a, b) => a.name.localeCompare(b.name, 'de')); save(); render(); } }, 'A–Z sortieren'),
+      h('button', { onclick: () => { cls.students.sort((a, b) => a.name.localeCompare(b.name, 'de')); cls.orderM = nowIso(); save(); render(); } }, 'A–Z sortieren'),
       h('span', { class: 'grow' }),
       h('button', { class: 'small', onclick: () => renameClass(cls) }, 'Klasse umbenennen'),
       h('button', { class: 'small danger', onclick: () => deleteClass(cls) }, 'Klasse löschen')));
@@ -757,9 +762,203 @@ async function backupDialog() {
     [{ label: 'Schließen', primary: true, value: true }]);
 }
 
+/* ---------- Automatischer Abgleich mit OneDrive ---------- */
+const CLIENT_ID = '4f8b18df-b021-4eb5-be30-59f8c0ed1fb1';
+const REDIRECT = 'https://djoma1609.github.io/Notenbuch/';
+const AUTH_URL = 'https://login.microsoftonline.com/consumers/oauth2/v2.0/';
+const SCOPE = 'Files.ReadWrite.AppFolder offline_access';
+const FILE_URL = 'https://graph.microsoft.com/v1.0/me/drive/special/approot:/notenbuch.json';
+const AUTH_KEY = 'lehrerkalender.auth', PKCE_KEY = 'lehrerkalender.pkce';
+const canSync = (location.origin + location.pathname).startsWith(REDIRECT);
+
+function readJson(key) { try { return JSON.parse(localStorage.getItem(key)); } catch (e) { return null; } }
+let auth = readJson(AUTH_KEY);
+let syncing = false, syncTimer = null, dirtyGen = 0, syncState = 'off', syncMsg = '';
+function saveAuth() {
+  try { if (auth) localStorage.setItem(AUTH_KEY, JSON.stringify(auth)); else localStorage.removeItem(AUTH_KEY); } catch (e) {}
+}
+function markDirty() {
+  if (!auth) return;
+  auth.dirty = true; dirtyGen++; saveAuth(); scheduleSync(2500);
+}
+function setSync(state, msg) {
+  syncState = state; syncMsg = msg || '';
+  const labels = { off: 'Abgleich aus', ok: 'Abgleich ✓', busy: 'Abgleich …', offline: 'Offline', error: 'Abgleich ⚠', login: 'Anmelden ⚠' };
+  const b = document.getElementById('btnSync');
+  b.textContent = labels[state];
+  b.title = msg || '';
+}
+function b64url(bytes) { return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+
+/* Anmeldung: OAuth 2.0 mit PKCE, ohne Zusatzbibliothek. Es gibt kein Geheimnis im Code. */
+async function login(silent) {
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(48)));
+  const challenge = b64url(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))));
+  const state = b64url(crypto.getRandomValues(new Uint8Array(12)));
+  localStorage.setItem(PKCE_KEY, JSON.stringify({ verifier, state, silent: !!silent }));
+  const p = new URLSearchParams({ client_id: CLIENT_ID, response_type: 'code', redirect_uri: REDIRECT, response_mode: 'query',
+    scope: SCOPE, state, code_challenge: challenge, code_challenge_method: 'S256' });
+  if (silent) p.set('prompt', 'none');
+  location.assign(AUTH_URL + 'authorize?' + p);
+}
+async function tokenRequest(params) {
+  const r = await fetch(AUTH_URL + 'token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ client_id: CLIENT_ID, scope: SCOPE, ...params }) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { const e = new Error(j.error_description || j.error || ('HTTP ' + r.status)); e.code = j.error; throw e; }
+  return j;
+}
+function storeTokens(j, fresh) {
+  auth = Object.assign(auth || { dirty: true }, { access: j.access_token, exp: Date.now() + j.expires_in * 1000, refresh: j.refresh_token || (auth && auth.refresh) });
+  if (fresh) { auth.rexp = Date.now() + 23 * 3600e3; delete auth.needLogin; delete auth.silentFailed; }
+  saveAuth();
+}
+async function handleRedirect() {
+  const q = new URLSearchParams(location.search);
+  if (!q.has('code') && !q.has('error')) return;
+  const pk = readJson(PKCE_KEY) || {};
+  localStorage.removeItem(PKCE_KEY);
+  history.replaceState(null, '', location.pathname);
+  if (q.has('error')) {
+    if (pk.silent) { if (auth) { auth.needLogin = true; auth.silentFailed = true; saveAuth(); } }
+    else if (q.get('error') !== 'access_denied') alert('Anmeldung fehlgeschlagen: ' + (q.get('error_description') || q.get('error')));
+    return;
+  }
+  if (!pk.verifier || pk.state !== q.get('state')) { alert('Die Anmeldung konnte nicht zugeordnet werden. Bitte erneut versuchen.'); return; }
+  try {
+    storeTokens(await tokenRequest({ grant_type: 'authorization_code', code: q.get('code'), redirect_uri: REDIRECT, code_verifier: pk.verifier }), true);
+  } catch (e) { alert('Anmeldung fehlgeschlagen: ' + e.message); }
+}
+async function getToken() {
+  if (!auth || auth.needLogin) return null;
+  if (auth.access && Date.now() < auth.exp - 60000) return auth.access;
+  if (!auth.refresh) { auth.needLogin = true; saveAuth(); return null; }
+  try {
+    storeTokens(await tokenRequest({ grant_type: 'refresh_token', refresh_token: auth.refresh }));
+    return auth.access;
+  } catch (e) {
+    if (e.code === 'invalid_grant' || e.code === 'interaction_required') { auth.needLogin = true; saveAuth(); return null; }
+    throw e;
+  }
+}
+
+/* Zugriff auf die Datei im App-Ordner der OneDrive (Apps/Notenbuch/notenbuch.json) */
+async function httpError(r) {
+  let detail = '';
+  try { detail = ((await r.json()).error || {}).message || ''; } catch (e) {}
+  if (r.status === 401 && auth) { auth.exp = 0; saveAuth(); }
+  return new Error('OneDrive meldet Fehler ' + r.status + (detail ? ': ' + detail : ''));
+}
+const cloud = {
+  async meta(token) {
+    const r = await fetch(FILE_URL, { headers: { Authorization: 'Bearer ' + token } });
+    if (r.status === 404) return null;
+    if (!r.ok) throw await httpError(r);
+    return r.json();
+  },
+  async download(meta) {
+    const r = await fetch(meta['@microsoft.graph.downloadUrl']);
+    if (!r.ok) throw await httpError(r);
+    return r.json();
+  },
+  async upload(token, text) {
+    const r = await fetch(FILE_URL + ':/content', { method: 'PUT', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'text/plain' }, body: text });
+    if (!r.ok) throw await httpError(r);
+    return r.json();
+  }
+};
+
+/* Nur diese Teile werden abgeglichen; Ansicht und Geräte-Einstellungen bleiben lokal. */
+function strip(s) {
+  return { version: s.version, classes: s.classes, deleted: s.deleted || {}, settings: { tendency: s.settings.tendency, m: s.settings.m } };
+}
+function canon(v) {
+  return JSON.stringify(v, (k, x) => x && typeof x === 'object' && !Array.isArray(x)
+    ? Object.fromEntries(Object.keys(x).sort().map(key => [key, x[key]])) : x);
+}
+const uiBusy = () => !!document.querySelector('dialog[open]') ||
+  /^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || '');
+function scheduleSync(ms) { if (!auth) return; clearTimeout(syncTimer); syncTimer = setTimeout(() => sync(), ms); }
+
+async function sync(force) {
+  if (!auth || syncing) return;
+  if (!navigator.onLine) { setSync('offline', 'Keine Verbindung – der Abgleich folgt automatisch.'); return; }
+  syncing = true; setSync('busy');
+  try {
+    const token = await getToken();
+    if (!token) { setSync('login', 'Bitte erneut bei Microsoft anmelden.'); return; }
+    const gen = dirtyGen;
+    const meta = await cloud.meta(token);
+    if (meta && !force && !auth.dirty && meta.eTag === auth.etag) { auth.last = nowIso(); saveAuth(); setSync('ok'); return; }
+    const remote = meta ? Object.assign(emptyState(), await cloud.download(meta)) : null;
+    if (remote) {
+      // Während einer Eingabe oder eines offenen Dialogs nicht dazwischenfunken.
+      if (!force && uiBusy()) { setSync('ok'); scheduleSync(4000); return; }
+      const before = canon(strip(S));
+      const keep = { ui: S.ui, showTs: S.settings.showTs, lastBackup: S.lastBackup };
+      S = mergeState(remote, S);
+      S.ui = keep.ui; S.settings.showTs = keep.showTs; S.lastBackup = keep.lastBackup;
+      if (canon(strip(S)) !== before) { saveLocal(); if (!force) render(); else pendingRender = true; }
+    }
+    if (!remote || canon(strip(S)) !== canon(strip(remote))) {
+      auth.etag = (await cloud.upload(token, JSON.stringify(strip(S)))).eTag;
+    } else auth.etag = meta.eTag;
+    if (dirtyGen === gen) auth.dirty = false; else scheduleSync(2500);
+    auth.last = nowIso(); saveAuth(); setSync('ok');
+  } catch (e) {
+    console.error(e);
+    if (e instanceof TypeError || !navigator.onLine) setSync('offline', 'Keine Verbindung – der Abgleich folgt automatisch.');
+    else setSync('error', e.message);
+  } finally { syncing = false; }
+}
+let pendingRender = false;
+
+async function syncDialog() {
+  const info = h('p', { class: 'hint' });
+  const describe = () => {
+    if (!auth) info.textContent = 'Nicht angemeldet. Die Daten liegen nur auf diesem Gerät.';
+    else if (auth.needLogin || syncState === 'login') info.textContent = 'Die Anmeldung ist abgelaufen. Bitte erneut anmelden; deine Einträge bleiben erhalten.';
+    else if (syncState === 'error') info.textContent = 'Fehler beim Abgleich: ' + syncMsg;
+    else if (syncState === 'offline') info.textContent = 'Keine Verbindung. Der Abgleich folgt automatisch, sobald das Gerät wieder online ist.';
+    else info.textContent = auth.last ? 'Angemeldet. Letzter Abgleich: ' + fmtTs(auth.last, true) : 'Angemeldet. Noch kein Abgleich.';
+  };
+  describe();
+  const body = h('div', {},
+    h('p', { class: 'hint' }, 'Das Notenbuch legt seine Daten in einem eigenen Ordner deiner OneDrive ab (Apps/Notenbuch) und gleicht sie auf allen angemeldeten Geräten automatisch ab. Auf andere Dateien hat es keinen Zugriff.'),
+    info);
+  const actions = [];
+  if (!canSync) {
+    body.append(h('p', { class: 'hint' }, 'Der Abgleich funktioniert nur unter ' + REDIRECT));
+  } else if (!auth || auth.needLogin) {
+    actions.push({ label: auth ? 'Erneut anmelden' : 'Mit Microsoft anmelden', primary: true, fn: async () => { await login(false); return KEEP; } });
+  } else {
+    actions.push({ label: 'Jetzt abgleichen', fn: async () => { await sync(true); describe(); return KEEP; } });
+  }
+  if (auth) actions.unshift({ label: 'Abmelden', cls: 'danger left', value: 'logout' });
+  actions.push({ label: 'Schließen', primary: !actions.some(a => a.primary), value: null });
+  const r = await dlg('Automatischer Abgleich', body, actions);
+  if (r === 'logout') { auth = null; saveAuth(); clearTimeout(syncTimer); setSync('off'); }
+  if (pendingRender) { pendingRender = false; render(); }
+}
+
+async function startSync() {
+  await handleRedirect();
+  if (!auth) { setSync('off'); return; }
+  // Die Microsoft-Anmeldung hält bei Web-Apps höchstens 24 Stunden. Beim Öffnen wird sie
+  // deshalb einmal still erneuert; gelingt das nicht, bittet die App um eine neue Anmeldung.
+  if (canSync && navigator.onLine && !auth.silentFailed && (auth.needLogin || Date.now() > (auth.rexp || 0))) { login(true); return; }
+  if (auth.needLogin) { setSync('login', 'Bitte erneut bei Microsoft anmelden.'); return; }
+  sync();
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) sync(); });
+window.addEventListener('online', () => sync());
+setInterval(() => { if (!document.hidden) sync(); }, 60000);
+
+document.getElementById('btnSync').addEventListener('click', syncDialog);
 document.getElementById('btnBackup').addEventListener('click', backupDialog);
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 render();
+startSync();
 </script>
 </body>
 </html>
