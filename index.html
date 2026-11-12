@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Notenbuch">
+<title>Lehrerkalender – Notenbuch</title>
+<style>
+:root {
+  --bg: #f4f5f7; --panel: #ffffff; --ink: #1c2330; --muted: #667085; --line: #d9dde5;
+  --accent: #2456c9; --accent-ink: #ffffff; --soft: #e8eefc; --bad: #c62828; --good: #1b7f3b;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171c; --panel: #1e232b; --ink: #e8ebf0; --muted: #98a2b3; --line: #343b47;
+    --accent: #7ea2ff; --accent-ink: #10141b; --soft: #27324a; --bad: #ff7b72; --good: #6fd08c;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--ink);
+  font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+header.top {
+  display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+  background: var(--panel); border-bottom: 1px solid var(--line);
+}
+header.top h1 { font-size: 18px; margin: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#status { font-size: 12px; color: var(--muted); white-space: nowrap; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  padding: 7px 12px; cursor: pointer; white-space: nowrap;
+}
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+button.danger { color: var(--bad); }
+button.small { padding: 4px 8px; font-size: 13px; }
+input[type=text], input[type=number], select, textarea {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; width: 100%;
+}
+input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.tabs { display: flex; gap: 6px; overflow-x: auto; padding: 10px 16px 0; -webkit-overflow-scrolling: touch; }
+.tabs button { border-radius: 10px 10px 0 0; border-bottom: none; padding: 9px 14px; color: var(--muted); background: transparent; }
+.tabs button.active { background: var(--panel); color: var(--ink); font-weight: 600; border-color: var(--line); }
+.tabs button.add { border-style: dashed; }
+.tabs.sub { padding-top: 12px; }
+.tabs.sub button { font-size: 14px; padding: 7px 12px; }
+.tabs.sub button.active { background: var(--soft); border-color: var(--accent); color: var(--ink); }
+.tabs.sub button { border-radius: 999px; border-bottom: 1px solid var(--line); }
+.tabs.sub button.add { border-bottom-style: dashed; }
+
+.panel { background: var(--panel); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 4px 16px 20px; min-height: 60vh; }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 12px 0; }
+.bar .grow { flex: 1; }
+.bar label { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--muted); }
+.hint { color: var(--muted); font-size: 14px; }
+.empty { text-align: center; padding: 48px 16px; color: var(--muted); }
+.empty button { margin-top: 12px; }
+
+.scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--line); border-radius: 10px; }
+table { border-collapse: separate; border-spacing: 0; width: 100%; }
+th, td { border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); padding: 6px 8px; text-align: center; vertical-align: middle; }
+tr:last-child > td { border-bottom: none; }
+th:last-child, td:last-child { border-right: none; }
+thead th { background: var(--bg); font-size: 13px; font-weight: 600; }
+tfoot td { background: var(--bg); font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); }
+th.name, td.name { position: sticky; left: 0; z-index: 1; text-align: left; min-width: 150px; max-width: 220px; background: var(--panel); }
+thead th.name, tfoot td.name { background: var(--bg); }
+th .colbtn { border: none; background: transparent; padding: 2px 4px; font-weight: 600; display: block; width: 100%; }
+th .colbtn small { display: block; font-weight: 400; color: var(--muted); font-size: 11px; }
+td.cell { min-width: 84px; }
+td.cell input.grade { width: 56px; text-align: center; padding: 6px 4px; font-weight: 600; }
+td.cell input.txt { min-width: 150px; }
+td.cell input.bad { border-color: var(--bad); color: var(--bad); }
+td.cell .ts { display: block; font-size: 10.5px; color: var(--muted); margin-top: 2px; min-height: 13px; white-space: nowrap; }
+.hide-ts .ts { display: none; }
+td.avg { font-variant-numeric: tabular-nums; min-width: 64px; }
+td.note { font-weight: 700; font-size: 18px; min-width: 56px; }
+button.check { width: 44px; height: 36px; padding: 0; font-size: 18px; }
+button.check.on { background: var(--good); border-color: var(--good); color: #fff; }
+
+ul.students { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 10px; }
+ul.students li { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+ul.students li:last-child { border-bottom: none; }
+ul.students li .nr { color: var(--muted); width: 28px; font-variant-numeric: tabular-nums; }
+ul.students li .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+
+dialog.dlg { border: 1px solid var(--line); border-radius: 14px; background: var(--panel); color: var(--ink); padding: 20px; width: min(520px, calc(100vw - 32px)); }
+dialog.dlg::backdrop { background: rgba(0,0,0,.45); }
+dialog.dlg h2 { margin: 0 0 14px; font-size: 18px; }
+dialog.dlg .field { margin-bottom: 12px; }
+dialog.dlg .field > span { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+dialog.dlg textarea { min-height: 180px; resize: vertical; }
+.dlg-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin-top: 18px; }
+.dlg-actions .left { margin-right: auto; }
+.catrow { display: grid; grid-template-columns: 1fr 90px auto; gap: 8px; margin-bottom: 8px; align-items: center; }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>Notenbuch</h1>
+  <span id="status"></span>
+  <button id="btnBackup">Sicherung</button>
+</header>
+<nav class="tabs" id="classTabs"></nav>
+<main id="main"></main>
+
+<script>
+'use strict';
+const KEY = 'lehrerkalender.v1';
+const XLSX_URL = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+
+/* ---------- Daten ---------- */
+function emptyState() {
+  return { version: 2, classes: [], deleted: {}, settings: { tendency: 0.25, showTs: true }, ui: { classId: null, tabId: 'students' }, lastBackup: null };
+}
+function load() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) return Object.assign(emptyState(), JSON.parse(raw));
+  } catch (e) { console.error(e); }
+  return emptyState();
+}
+let S = load();
+function save() {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(S));
+    setStatus('Gespeichert ' + new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }));
+  } catch (e) {
+    setStatus('Speichern fehlgeschlagen!');
+    alert('Die Daten konnten nicht gespeichert werden: ' + e.message);
+  }
+}
+function setStatus(t) { document.getElementById('status').textContent = t; }
+function uid() { return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4); }
+const curClass = () => S.classes.find(c => c.id === S.ui.classId) || null;
+const nowIso = () => new Date().toISOString();
+const markDeleted = id => { S.deleted[id] = nowIso(); };
+
+/* Zellen: gelöschte Einträge bleiben als { v: null } mit Zeitstempel erhalten,
+   damit eine Löschung beim Zusammenführen nicht wieder auftaucht. */
+function getCell(tab, sid, colId) {
+  const c = (tab.cells[sid] || {})[colId];
+  return c && c.v != null ? c : null;
+}
+function setCell(tab, sid, colId, v) {
+  const cells = tab.cells[sid] || (tab.cells[sid] = {});
+  const c = cells[colId], n = nowIso();
+  if (v == null || v === '') { if (c && c.v != null) cells[colId] = { v: null, t: c.t, m: n }; }
+  else if (!c || c.v == null) cells[colId] = { v, t: n, m: n };
+  else if (c.v !== v) { c.v = v; c.m = n; }
+  return getCell(tab, sid, colId);
+}
+
+/* ---------- Zusammenführen zweier Stände ---------- */
+function newer(a, b) { return (b.m || '') > (a.m || '') ? b : a; }
+function mergeList(a, b, deleted, mergeItem) {
+  const bm = new Map(b.map(x => [x.id, x])), seen = new Set(), out = [];
+  for (const x of a) {
+    seen.add(x.id);
+    if (deleted[x.id]) continue;
+    const y = bm.get(x.id);
+    out.push(y ? mergeItem(x, y) : x);
+  }
+  for (const y of b) if (!seen.has(y.id) && !deleted[y.id]) out.push(y);
+  return out;
+}
+function mergeTab(a, b, deleted) {
+  const top = newer(a, b);
+  const t = { id: a.id, type: a.type, name: top.name, m: top.m, columns: mergeList(a.columns, b.columns, deleted, newer), cells: {} };
+  if (a.type === 'grades') {
+    const src = (b.catM || '') > (a.catM || '') ? b : a;
+    t.categories = src.categories; t.catM = src.catM;
+    const ids = new Set(t.categories.map(c => c.id));
+    t.columns.forEach(col => { if (!ids.has(col.catId)) col.catId = t.categories[0].id; });
+  }
+  for (const sid of new Set([...Object.keys(a.cells), ...Object.keys(b.cells)])) {
+    if (deleted[sid]) continue;
+    const ca = a.cells[sid] || {}, cb = b.cells[sid] || {}, out = {};
+    for (const cid of new Set([...Object.keys(ca), ...Object.keys(cb)])) {
+      if (deleted[cid]) continue;
+      out[cid] = ca[cid] && cb[cid] ? newer(ca[cid], cb[cid]) : (ca[cid] || cb[cid]);
+    }
+    t.cells[sid] = out;
+  }
+  return t;
+}
+function mergeState(a, b) {
+  const deleted = { ...(b.deleted || {}), ...(a.deleted || {}) };
+  const out = Object.assign(emptyState(), a, { deleted });
+  out.classes = mergeList(a.classes, b.classes || [], deleted, (x, y) => {
+    const top = newer(x, y);
+    return { id: x.id, name: top.name, m: top.m,
+      students: mergeList(x.students, y.students, deleted, newer),
+      tabs: mergeList(x.tabs, y.tabs, deleted, (p, q) => mergeTab(p, q, deleted)) };
+  });
+  const sNew = newer(a.settings || {}, b.settings || {});
+  out.settings = { ...a.settings, m: sNew.m };
+  if (sNew.tendency != null) out.settings.tendency = sNew.tendency;
+  if ((b.lastBackup || '') > (a.lastBackup || '')) out.lastBackup = b.lastBackup;
+  return out;
+}
+
+/* ---------- Hilfen ---------- */
+function h(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  attrs = attrs || {};
+  for (const k of kids.flat()) {
+    if (k == null || k === false) continue;
+    e.append(k.nodeType ? k : document.createTextNode(String(k)));
+  }
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v == null || v === false) continue;
+    if (k === 'class') e.className = v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else if (k === 'value') e.value = v;
+    else if (k === 'checked') e.checked = true;
+    else e.setAttribute(k, v === true ? '' : v);
+  }
+  return e;
+}
+const fmtNum = n => n.toFixed(2).replace('.', ',');
+function fmtTs(iso, long) {
+  const d = new Date(iso);
+  return long
+    ? d.toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    : d.toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+function tsTitle(c) {
+  if (!c) return '';
+  return 'Eingetragen: ' + fmtTs(c.t, true) + (c.m !== c.t ? '\nGeändert: ' + fmtTs(c.m, true) : '');
+}
+function tsText(c) {
+  if (!c) return '';
+  return fmtTs(c.m) + (c.m !== c.t ? ' ✎' : '');
+}
+
+/* ---------- Dialoge ---------- */
+const KEEP = Symbol('keep');
+function dlg(title, content, actions) {
+  return new Promise(resolve => {
+    const d = h('dialog', { class: 'dlg' });
+    const close = v => { d.close(); d.remove(); resolve(v); };
+    const run = async a => { const v = a.fn ? await a.fn() : a.value; if (v !== KEEP) close(v); };
+    const form = h('form', { onsubmit: e => { e.preventDefault(); const a = actions.find(a => a.primary); if (a) run(a); } },
+      h('h2', {}, title), content,
+      h('div', { class: 'dlg-actions' }, actions.map(a =>
+        h('button', { type: a.primary ? 'submit' : 'button', class: a.cls || (a.primary ? 'primary' : ''), onclick: a.primary ? null : () => run(a) }, a.label))));
+    d.append(form);
+    d.addEventListener('cancel', e => { e.preventDefault(); close(null); });
+    document.body.append(d);
+    d.showModal();
+    const f = d.querySelector('input[type=text], textarea');
+    if (f) { f.focus(); f.select(); }
+  });
+}
+function field(label, input) { return h('label', { class: 'field' }, h('span', {}, label), input); }
+function askText(title, label, value, okLabel) {
+  const inp = h('input', { type: 'text', value: value || '' });
+  return dlg(title, field(label, inp), [
+    { label: 'Abbrechen', value: null },
+    { label: okLabel || 'OK', primary: true, fn: () => inp.value.trim() || KEEP }
+  ]);
+}
+function confirmDlg(title, text, okLabel) {
+  return dlg(title, h('p', {}, text), [
+    { label: 'Abbrechen', value: false },
+    { label: okLabel || 'Löschen', cls: 'danger', value: true }
+  ]);
+}
+
+/* ---------- Noten ---------- */
+const GRADE_RE = /^[1-6][+-]?$/;
+function gradeVal(v) {
+  let n = +v[0];
+  const t = S.settings.tendency;
+  if (v[1] === '+') n -= t;
+  if (v[1] === '-') n += t;
+  return n;
+}
+function calcStudent(tab, sid) {
+  const cells = tab.cells[sid] || {};
+  let sum = 0, wsum = 0;
+  for (const cat of tab.categories) {
+    let s = 0, f = 0;
+    for (const col of tab.columns) {
+      if (col.catId !== cat.id) continue;
+      const c = getCell(tab, sid, col.id);
+      if (!c) continue;
+      s += gradeVal(c.v) * col.factor; f += col.factor;
+    }
+    if (f > 0 && cat.weight > 0) { sum += (s / f) * cat.weight; wsum += cat.weight; }
+  }
+  return wsum > 0 ? sum / wsum : null;
+}
+function colAvg(tab, col, students) {
+  let s = 0, n = 0;
+  for (const st of students) { const c = getCell(tab, st.id, col.id); if (c) { s += gradeVal(c.v); n++; } }
+  return n ? s / n : null;
+}
+
+/* ---------- Rendering ---------- */
+function render() {
+  if (!curClass()) S.ui.classId = S.classes[0] ? S.classes[0].id : null;
+  const cls = curClass();
+  const ct = document.getElementById('classTabs');
+  ct.replaceChildren(
+    ...S.classes.map(c => h('button', { class: c.id === S.ui.classId ? 'active' : '', onclick: () => { S.ui.classId = c.id; S.ui.tabId = 'students'; save(); render(); } }, c.name)),
+    h('button', { class: 'add', onclick: addClass }, '+ Klasse'));
+  const main = document.getElementById('main');
+  if (!cls) {
+    main.replaceChildren(h('div', { class: 'empty' },
+      h('p', {}, 'Noch keine Klasse angelegt.'),
+      h('button', { class: 'primary', onclick: addClass }, 'Erste Klasse anlegen'), ' ',
+      h('button', { onclick: loadDemo }, 'Beispielklasse laden')));
+    return;
+  }
+  if (S.ui.tabId !== 'students' && !cls.tabs.find(t => t.id === S.ui.tabId)) S.ui.tabId = 'students';
+  const go = id => { S.ui.tabId = id; save(); render(); };
+  const sub = h('nav', { class: 'tabs sub' },
+    h('button', { class: S.ui.tabId === 'students' ? 'active' : '', onclick: () => go('students') }, 'Schüler (' + cls.students.length + ')'),
+    cls.tabs.map(t => h('button', { class: t.id === S.ui.tabId ? 'active' : '', onclick: () => go(t.id) }, t.name)),
+    h('button', { class: 'add', onclick: addTab }, '+ Reiter'));
+  const panel = h('section', { class: 'panel' });
+  const tab = cls.tabs.find(t => t.id === S.ui.tabId);
+  if (!tab) renderStudents(panel, cls);
+  else if (tab.type === 'grades') renderGrades(panel, cls, tab);
+  else renderList(panel, cls, tab);
+  main.replaceChildren(sub, panel);
+}
+
+/* ---------- Beispieldaten ---------- */
+function loadDemo() {
+  const now = Date.now();
+  const stamp = daysAgo => new Date(now - daysAgo * 864e5).toISOString();
+  const cell = (v, d) => ({ v, t: stamp(d), m: stamp(d) });
+  const names = ['Becker, Lena', 'Demir, Emre', 'Fischer, Jonas', 'Krüger, Mia', 'Nowak, Paul', 'Wagner, Sophie'];
+  const students = names.map(name => ({ id: uid(), name }));
+  const s = uid(), m = uid(), k1 = uid(), k2 = uid(), m1 = uid(), z1 = uid(), z2 = uid();
+  const grades = [['2+', '3', '2'], ['4', '3-', '3'], ['1-', '2', '1'], ['3', '', '2-'], ['5', '4+', '4'], ['2', '2-', '']];
+  const mathe = { id: uid(), type: 'grades', name: 'Mathe', cells: {},
+    categories: [{ id: s, name: 'Schriftlich', weight: 50 }, { id: m, name: 'Mündlich', weight: 50 }],
+    columns: [{ id: k1, name: 'Klassenarbeit 1', catId: s, factor: 2 }, { id: k2, name: 'Test', catId: s, factor: 1 }, { id: m1, name: 'Mündlich 1', catId: m, factor: 1 }] };
+  const zettel = { id: uid(), type: 'list', name: 'Rückläufer', cells: {},
+    columns: [{ id: z1, name: 'Elternbrief Wandertag', type: 'check' }, { id: z2, name: 'Notiz', type: 'text' }] };
+  students.forEach((st, i) => {
+    const g = grades[i], c = mathe.cells[st.id] = {};
+    if (g[0]) c[k1] = cell(g[0], 14); if (g[1]) c[k2] = cell(g[1], 6); if (g[2]) c[m1] = cell(g[2], 2);
+    zettel.cells[st.id] = {};
+    if (i % 3 !== 1) zettel.cells[st.id][z1] = cell(true, 1);
+  });
+  zettel.cells[students[1].id][z2] = cell('Zettel verloren, neuer mitgegeben', 1);
+  const cls = { id: uid(), name: '7b (Beispiel)', students, tabs: [mathe, zettel] };
+  S.classes.push(cls); S.ui = { classId: cls.id, tabId: mathe.id };
+  save(); render();
+}
+
+/* ---------- Klassen & Reiter ---------- */
+async function addClass() {
+  const name = await askText('Neue Klasse', 'Name der Klasse (z. B. 7b)', '', 'Anlegen');
+  if (!name) return;
+  const c = { id: uid(), name, m: nowIso(), students: [], tabs: [] };
+  S.classes.push(c); S.ui.classId = c.id; S.ui.tabId = 'students';
+  save(); render();
+}
+async function renameClass(cls) {
+  const name = await askText('Klasse umbenennen', 'Name', cls.name);
+  if (name) { cls.name = name; cls.m = nowIso(); save(); render(); }
+}
+async function deleteClass(cls) {
+  if (!await confirmDlg('Klasse löschen', 'Klasse „' + cls.name + '“ mit allen Schülern, Noten und Listen endgültig löschen?')) return;
+  S.classes = S.classes.filter(c => c !== cls); markDeleted(cls.id); save(); render();
+}
+async function addTab() {
+  const cls = curClass();
+  const name = h('input', { type: 'text', placeholder: 'z. B. Mathe oder Rückläufer' });
+  const type = h('select', {},
+    h('option', { value: 'grades' }, 'Fach mit Noten'),
+    h('option', { value: 'list' }, 'Liste (Rückläufer, Notizen)'));
+  const ok = await dlg('Neuer Reiter', h('div', {}, field('Name', name), field('Art', type)), [
+    { label: 'Abbrechen', value: null },
+    { label: 'Anlegen', primary: true, fn: () => name.value.trim() ? true : KEEP }
+  ]);
+  if (!ok) return;
+  const t = { id: uid(), type: type.value, name: name.value.trim(), m: nowIso(), columns: [], cells: {} };
+  if (t.type === 'grades') {
+    t.categories = [{ id: uid(), name: 'Schriftlich', weight: 50 }, { id: uid(), name: 'Mündlich', weight: 50 }];
+  }
+  cls.tabs.push(t); S.ui.tabId = t.id; save(); render();
+}
+async function renameTab(tab) {
+  const name = await askText('Reiter umbenennen', 'Name', tab.name);
+  if (name) { tab.name = name; tab.m = nowIso(); save(); render(); }
+}
+async function deleteTab(cls, tab) {
+  if (!await confirmDlg('Reiter löschen', 'Reiter „' + tab.name + '“ mit allen Einträgen endgültig löschen?')) return;
+  cls.tabs = cls.tabs.filter(t => t !== tab); markDeleted(tab.id); S.ui.tabId = 'students'; save(); render();
+}
+function tsToggle() {
+  return h('label', {}, h('input', { type: 'checkbox', checked: S.settings.showTs, onchange: e => { S.settings.showTs = e.target.checked; save(); render(); } }), 'Zeitstempel');
+}
+
+/* ---------- Schüler ---------- */
+function renderStudents(panel, cls) {
+  const inp = h('input', { type: 'text', placeholder: 'Name hinzufügen (Nachname, Vorname)', style: 'max-width:320px' });
+  const add = () => {
+    const n = inp.value.trim(); if (!n) return;
+    cls.students.push({ id: uid(), name: n, m: nowIso() }); save(); render();
+    const again = document.querySelector('.panel input[type=text]'); if (again) again.focus();
+  };
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') add(); });
+  panel.append(
+    h('div', { class: 'bar' },
+      inp, h('button', { onclick: add }, 'Hinzufügen'),
+      h('button', { class: 'primary', onclick: () => importStudents(cls) }, 'Namensliste importieren'),
+      h('button', { onclick: () => { cls.students.sort((a, b) => a.name.localeCompare(b.name, 'de')); save(); render(); } }, 'A–Z sortieren'),
+      h('span', { class: 'grow' }),
+      h('button', { class: 'small', onclick: () => renameClass(cls) }, 'Klasse umbenennen'),
+      h('button', { class: 'small danger', onclick: () => deleteClass(cls) }, 'Klasse löschen')));
+  if (!cls.students.length) {
+    panel.append(h('div', { class: 'empty' }, 'Noch keine Schüler. Namen einzeln hinzufügen oder eine Liste importieren (CSV, Excel oder einfügen).'));
+    return;
+  }
+  panel.append(h('ul', { class: 'students' }, cls.students.map((st, i) => h('li', {},
+    h('span', { class: 'nr' }, (i + 1) + '.'),
+    h('span', { class: 'nm' }, st.name),
+    h('button', { class: 'small', onclick: async () => { const n = await askText('Schüler umbenennen', 'Name', st.name); if (n) { st.name = n; st.m = nowIso(); save(); render(); } } }, 'Umbenennen'),
+    h('button', { class: 'small danger', onclick: async () => {
+      if (!await confirmDlg('Schüler löschen', '„' + st.name + '“ samt allen Noten und Einträgen in dieser Klasse löschen?')) return;
+      cls.students = cls.students.filter(x => x !== st);
+      markDeleted(st.id);
+      cls.tabs.forEach(t => { delete t.cells[st.id]; });
+      save(); render();
+    } }, 'Löschen')))));
+}
+
+/* ---------- Import ---------- */
+function namesFromRows(rows) {
+  rows = rows.map(r => r.map(c => String(c == null ? '' : c).trim())).filter(r => r.some(c => c));
+  if (!rows.length) return [];
+  const head = rows[0].map(c => c.toLowerCase());
+  const iN = head.findIndex(c => /^(nachname|familienname|name)$/.test(c));
+  const iV = head.findIndex(c => /^(vorname|rufname)$/.test(c));
+  if (iN >= 0 || iV >= 0) {
+    return rows.slice(1).map(r => [iN >= 0 ? r[iN] : '', iV >= 0 ? r[iV] : ''].filter(Boolean).join(', ')).filter(Boolean);
+  }
+  return rows.map(r => r.filter(c => c && !/^\d+[.)]?$/.test(c)).slice(0, 2).join(', ')).filter(Boolean);
+}
+function rowsFromText(text) {
+  const lines = text.replace(/^﻿/, '').split(/\r?\n/);
+  const delim = text.includes(';') ? ';' : text.includes('\t') ? '\t' : ',';
+  return lines.map(l => l.split(delim).map(c => c.trim().replace(/^"(.*)"$/, '$1')));
+}
+function loadScript(src) {
+  return new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = src; s.onload = res; s.onerror = () => rej(new Error('Laden fehlgeschlagen'));
+    document.head.append(s);
+  });
+}
+async function namesFromFile(file) {
+  const buf = await file.arrayBuffer();
+  if (/\.(xlsx|xls|ods)$/i.test(file.name)) {
+    if (!window.XLSX) {
+      try { await loadScript(XLSX_URL); }
+      catch (e) { throw new Error('Für Excel-Dateien wird einmalig eine Internetverbindung benötigt. Alternativ die Liste als CSV speichern oder die Namen einfügen.'); }
+    }
+    const wb = XLSX.read(buf, { type: 'array' });
+    return namesFromRows(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' }));
+  }
+  let text;
+  try { text = new TextDecoder('utf-8', { fatal: true }).decode(buf); }
+  catch (e) { text = new TextDecoder('windows-1252').decode(buf); }
+  return namesFromRows(rowsFromText(text));
+}
+async function importStudents(cls) {
+  const ta = h('textarea', { placeholder: 'Ein Name pro Zeile, z. B.\nMüller, Anna\nSchmidt, Ben' });
+  const msg = h('p', { class: 'hint' }, 'Datei wählen oder Namen einfügen. Die Liste kann vor dem Import bearbeitet werden.');
+  const file = h('input', { type: 'file', accept: '.csv,.txt,.xlsx,.xls,.ods', onchange: async e => {
+    const f = e.target.files[0]; if (!f) return;
+    try {
+      const names = await namesFromFile(f);
+      ta.value = names.join('\n');
+      msg.textContent = names.length + ' Namen aus „' + f.name + '“ gelesen. Bitte prüfen.';
+    } catch (err) { msg.textContent = err.message; }
+  } });
+  const ok = await dlg('Namensliste importieren – ' + cls.name, h('div', {}, field('Datei (CSV oder Excel)', file), field('Namen', ta), msg), [
+    { label: 'Abbrechen', value: null },
+    { label: 'Importieren', primary: true, value: true }
+  ]);
+  if (!ok) return;
+  const have = new Set(cls.students.map(s => s.name.toLowerCase()));
+  let n = 0;
+  for (const line of ta.value.split(/\r?\n/)) {
+    const name = line.trim();
+    if (!name || have.has(name.toLowerCase())) continue;
+    have.add(name.toLowerCase());
+    cls.students.push({ id: uid(), name, m: nowIso() }); n++;
+  }
+  save(); render();
+  setStatus(n + ' Schüler importiert');
+}
+
+/* ---------- Notentabelle ---------- */
+function renderGrades(panel, cls, tab) {
+  const catName = id => (tab.categories.find(c => c.id === id) || {}).name || '?';
+  panel.append(h('div', { class: 'bar' },
+    h('button', { class: 'primary', onclick: () => editColumn(tab, null) }, '+ Leistung'),
+    h('button', { onclick: () => editCategories(tab) }, 'Gewichtung'),
+    tsToggle(),
+    h('span', { class: 'hint' }, tab.categories.map(c => c.name + ' ' + c.weight + ' %').join(' · ')),
+    h('span', { class: 'grow' }),
+    h('button', { class: 'small', onclick: () => exportCsv(cls, tab) }, 'CSV-Export'),
+    h('button', { class: 'small', onclick: () => renameTab(tab) }, 'Umbenennen'),
+    h('button', { class: 'small danger', onclick: () => deleteTab(cls, tab) }, 'Löschen')));
+  if (!cls.students.length) { panel.append(h('div', { class: 'empty' }, 'Zuerst im Reiter „Schüler“ Namen anlegen oder importieren.')); return; }
+  if (!tab.columns.length) panel.append(h('p', { class: 'hint' }, 'Mit „+ Leistung“ eine Spalte anlegen (z. B. Klassenarbeit 1). Noten als 1–6 eingeben, optional mit + oder − (z. B. 2+).'));
+
+  const footCells = {};
+  const refreshFoot = () => {
+    for (const col of tab.columns) { const a = colAvg(tab, col, cls.students); footCells[col.id].textContent = a == null ? '–' : fmtNum(a); }
+    const all = cls.students.map(s => calcStudent(tab, s.id)).filter(v => v != null);
+    footCells._avg.textContent = all.length ? fmtNum(all.reduce((a, b) => a + b, 0) / all.length) : '–';
+  };
+  const thead = h('thead', {}, h('tr', {},
+    h('th', { class: 'name' }, 'Name'),
+    tab.columns.map(col => h('th', {}, h('button', { class: 'colbtn', title: 'Leistung bearbeiten', onclick: () => editColumn(tab, col) },
+      col.name, h('small', {}, catName(col.catId) + (col.factor !== 1 ? ' · ×' + String(col.factor).replace('.', ',') : ''))))),
+    h('th', {}, 'Note')));
+  const tbody = h('tbody', {}, cls.students.map(st => {
+    const avgTd = h('td', { class: 'avg note' });
+    const refresh = () => {
+      const a = calcStudent(tab, st.id);
+      avgTd.textContent = a == null ? '–' : fmtNum(a);
+    };
+    refresh();
+    return h('tr', {}, h('td', { class: 'name' }, st.name),
+      tab.columns.map(col => {
+        const c = getCell(tab, st.id, col.id);
+        const ts = h('span', { class: 'ts' }, tsText(c));
+        const inp = h('input', { type: 'text', class: 'grade', value: c ? c.v : '', maxlength: 2, autocomplete: 'off', inputmode: 'text',
+          'data-col': col.id, title: tsTitle(c), 'aria-label': col.name + ' – ' + st.name });
+        inp.addEventListener('change', () => {
+          const v = inp.value.trim().replace(/\s/g, '').replace(/[−–]/g, '-');
+          if (v !== '' && !GRADE_RE.test(v)) { inp.classList.add('bad'); inp.title = 'Ungültig – erlaubt sind 1 bis 6, optional mit + oder −'; return; }
+          const n = setCell(tab, st.id, col.id, v);
+          inp.value = v;
+          inp.classList.remove('bad');
+          ts.textContent = tsText(n); inp.title = tsTitle(n);
+          save(); refresh(); refreshFoot();
+        });
+        inp.addEventListener('keydown', e => {
+          if (e.key !== 'Enter') return;
+          e.preventDefault();
+          const list = [...tbody.querySelectorAll('input[data-col="' + col.id + '"]')];
+          const next = list[list.indexOf(inp) + 1];
+          if (next) { next.focus(); next.select(); } else inp.blur();
+        });
+        return h('td', { class: 'cell' }, inp, ts);
+      }), avgTd);
+  }));
+  const tfoot = h('tfoot', {}, h('tr', {}, h('td', { class: 'name' }, 'Klassenschnitt'),
+    tab.columns.map(col => footCells[col.id] = h('td', {})), footCells._avg = h('td', {})));
+  refreshFoot();
+  panel.append(h('div', { class: 'scroll' + (S.settings.showTs ? '' : ' hide-ts') }, h('table', {}, thead, tbody, tfoot)));
+}
+
+async function editColumn(tab, col) {
+  const isNew = !col;
+  const name = h('input', { type: 'text', value: col ? col.name : '', placeholder: 'z. B. Klassenarbeit 1' });
+  const cat = h('select', { value: col ? col.catId : tab.categories[0].id }, tab.categories.map(c => h('option', { value: c.id }, c.name + ' (' + c.weight + ' %)')));
+  const factor = h('input', { type: 'number', min: '0.1', step: '0.1', value: col ? col.factor : 1 });
+  const actions = [
+    { label: 'Abbrechen', value: null },
+    { label: isNew ? 'Anlegen' : 'Speichern', primary: true, fn: () => (name.value.trim() && +factor.value > 0) ? 'ok' : KEEP }
+  ];
+  if (!isNew) actions.unshift({ label: 'Leistung löschen', cls: 'danger left', value: 'del' });
+  const r = await dlg(isNew ? 'Neue Leistung' : 'Leistung bearbeiten',
+    h('div', {}, field('Bezeichnung', name), field('Bereich', cat), field('Faktor innerhalb des Bereichs (z. B. 2 = zählt doppelt)', factor)), actions);
+  if (!r) return;
+  if (r === 'del') {
+    if (!await confirmDlg('Leistung löschen', '„' + col.name + '“ mit allen eingetragenen Noten löschen?')) return;
+    tab.columns = tab.columns.filter(c => c !== col);
+    markDeleted(col.id);
+    Object.values(tab.cells).forEach(cells => { delete cells[col.id]; });
+  } else if (isNew) {
+    tab.columns.push({ id: uid(), name: name.value.trim(), catId: cat.value, factor: +factor.value, created: nowIso(), m: nowIso() });
+  } else {
+    col.name = name.value.trim(); col.catId = cat.value; col.factor = +factor.value; col.m = nowIso();
+  }
+  save(); render();
+}
+
+async function editCategories(tab) {
+  const work = tab.categories.map(c => ({ ...c }));
+  const box = h('div', {});
+  const sum = h('p', { class: 'hint' });
+  const draw = () => {
+    box.replaceChildren(...work.map(c => h('div', { class: 'catrow' },
+      h('input', { type: 'text', value: c.name, 'aria-label': 'Bereich', oninput: e => { c.name = e.target.value; } }),
+      h('input', { type: 'number', min: '0', step: '1', value: c.weight, 'aria-label': 'Gewicht in Prozent', oninput: e => { c.weight = +e.target.value || 0; total(); } }),
+      h('button', { type: 'button', class: 'small danger', disabled: work.length < 2, onclick: () => { work.splice(work.indexOf(c), 1); draw(); } }, 'Entfernen'))));
+    total();
+  };
+  const total = () => {
+    const t = work.reduce((a, c) => a + c.weight, 0);
+    sum.textContent = 'Summe: ' + t + ' %' + (t !== 100 ? ' – die Gewichte werden anteilig verrechnet.' : '');
+  };
+  draw();
+  const ok = await dlg('Gewichtung – ' + tab.name, h('div', {},
+    h('p', { class: 'hint' }, 'Bereiche und ihr Anteil an der Gesamtnote. Bereiche ohne Noten werden bei einem Schüler nicht mitgerechnet.'),
+    box,
+    h('button', { type: 'button', class: 'small', onclick: () => { work.push({ id: uid(), name: 'Neuer Bereich', weight: 0 }); draw(); } }, '+ Bereich'),
+    sum), [
+    { label: 'Abbrechen', value: null },
+    { label: 'Speichern', primary: true, fn: () => work.every(c => c.name.trim()) ? true : KEEP }
+  ]);
+  if (!ok) return;
+  work.forEach(c => { c.name = c.name.trim(); });
+  tab.categories = work; tab.catM = nowIso();
+  const ids = new Set(work.map(c => c.id));
+  tab.columns.forEach(col => { if (!ids.has(col.catId)) col.catId = work[0].id; });
+  save(); render();
+}
+
+function exportCsv(cls, tab) {
+  const q = v => '"' + String(v).replace(/"/g, '""') + '"';
+  const rows = [['Name', ...tab.columns.map(c => c.name), 'Note'].map(q).join(';')];
+  for (const st of cls.students) {
+    const a = calcStudent(tab, st.id);
+    rows.push([st.name, ...tab.columns.map(c => (getCell(tab, st.id, c.id) || {}).v || ''), a == null ? '' : fmtNum(a)].map(q).join(';'));
+  }
+  download('﻿' + rows.join('\r\n'), cls.name + '-' + tab.name + '.csv', 'text/csv;charset=utf-8');
+}
+
+/* ---------- Listen (Rückläufer, Notizen) ---------- */
+function renderList(panel, cls, tab) {
+  panel.append(h('div', { class: 'bar' },
+    h('button', { class: 'primary', onclick: () => editListColumn(tab, null) }, '+ Spalte'),
+    tsToggle(),
+    h('span', { class: 'grow' }),
+    h('button', { class: 'small', onclick: () => renameTab(tab) }, 'Umbenennen'),
+    h('button', { class: 'small danger', onclick: () => deleteTab(cls, tab) }, 'Löschen')));
+  if (!cls.students.length) { panel.append(h('div', { class: 'empty' }, 'Zuerst im Reiter „Schüler“ Namen anlegen oder importieren.')); return; }
+  if (!tab.columns.length) panel.append(h('p', { class: 'hint' }, 'Mit „+ Spalte“ z. B. einen Zettel zum Abhaken oder eine Notizspalte anlegen.'));
+
+  const foot = {};
+  const refreshFoot = () => {
+    for (const col of tab.columns) {
+      const n = cls.students.filter(s => getCell(tab, s.id, col.id)).length;
+      foot[col.id].textContent = col.type === 'check' ? n + ' / ' + cls.students.length : '';
+    }
+  };
+  const thead = h('thead', {}, h('tr', {}, h('th', { class: 'name' }, 'Name'),
+    tab.columns.map(col => h('th', {}, h('button', { class: 'colbtn', title: 'Spalte bearbeiten', onclick: () => editListColumn(tab, col) },
+      col.name, h('small', {}, col.type === 'check' ? 'Abhaken' : 'Notiz'))))));
+  const tbody = h('tbody', {}, cls.students.map(st => h('tr', {}, h('td', { class: 'name' }, st.name),
+    tab.columns.map(col => {
+      const c = getCell(tab, st.id, col.id);
+      const ts = h('span', { class: 'ts' }, tsText(c));
+      let ctl;
+      if (col.type === 'check') {
+        ctl = h('button', { type: 'button', class: 'check' + (c ? ' on' : ''), 'aria-pressed': c ? 'true' : 'false', 'aria-label': col.name + ' – ' + st.name, title: tsTitle(c) }, c ? '✓' : '');
+        ctl.addEventListener('click', () => {
+          const n = setCell(tab, st.id, col.id, getCell(tab, st.id, col.id) ? null : true);
+          ctl.classList.toggle('on', !!n); ctl.textContent = n ? '✓' : ''; ctl.setAttribute('aria-pressed', n ? 'true' : 'false');
+          ctl.title = tsTitle(n); ts.textContent = tsText(n);
+          save(); refreshFoot();
+        });
+      } else {
+        ctl = h('input', { type: 'text', class: 'txt', value: c ? c.v : '', 'aria-label': col.name + ' – ' + st.name, title: tsTitle(c) });
+        ctl.addEventListener('change', () => {
+          const n = setCell(tab, st.id, col.id, ctl.value.trim());
+          ctl.title = tsTitle(n); ts.textContent = tsText(n);
+          save(); refreshFoot();
+        });
+      }
+      return h('td', { class: 'cell' }, ctl, ts);
+    }))));
+  const tfoot = h('tfoot', {}, h('tr', {}, h('td', { class: 'name' }, 'Zurück'), tab.columns.map(col => foot[col.id] = h('td', {}))));
+  refreshFoot();
+  panel.append(h('div', { class: 'scroll' + (S.settings.showTs ? '' : ' hide-ts') }, h('table', {}, thead, tbody, tfoot)));
+}
+async function editListColumn(tab, col) {
+  const isNew = !col;
+  const name = h('input', { type: 'text', value: col ? col.name : '', placeholder: 'z. B. Elternbrief Wandertag' });
+  const type = h('select', { value: col ? col.type : 'check', disabled: !isNew },
+    h('option', { value: 'check' }, 'Abhaken (zurück / erledigt)'), h('option', { value: 'text' }, 'Notiz (freier Text)'));
+  const actions = [
+    { label: 'Abbrechen', value: null },
+    { label: isNew ? 'Anlegen' : 'Speichern', primary: true, fn: () => name.value.trim() ? 'ok' : KEEP }
+  ];
+  if (!isNew) actions.unshift({ label: 'Spalte löschen', cls: 'danger left', value: 'del' });
+  const r = await dlg(isNew ? 'Neue Spalte' : 'Spalte bearbeiten', h('div', {}, field('Bezeichnung', name), field('Art', type)), actions);
+  if (!r) return;
+  if (r === 'del') {
+    if (!await confirmDlg('Spalte löschen', '„' + col.name + '“ mit allen Einträgen löschen?')) return;
+    tab.columns = tab.columns.filter(c => c !== col);
+    markDeleted(col.id);
+    Object.values(tab.cells).forEach(cells => { delete cells[col.id]; });
+  } else if (isNew) tab.columns.push({ id: uid(), name: name.value.trim(), type: type.value, created: nowIso(), m: nowIso() });
+  else { col.name = name.value.trim(); col.m = nowIso(); }
+  save(); render();
+}
+
+/* ---------- Sicherung & Einstellungen ---------- */
+function download(content, filename, mime) {
+  const url = URL.createObjectURL(new Blob([content], { type: mime }));
+  const a = h('a', { href: url, download: filename.replace(/[\\/:*?"<>|]/g, '_') });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+async function backupDialog() {
+  const tend = h('select', { value: String(S.settings.tendency) },
+    h('option', { value: '0.25' }, '0,25 (2+ = 1,75 · 2− = 2,25)'),
+    h('option', { value: '0.33' }, '0,33 (2+ = 1,67 · 2− = 2,33)'),
+    h('option', { value: '0' }, 'Tendenzen nicht einrechnen'));
+  tend.addEventListener('change', () => { S.settings.tendency = +tend.value; S.settings.m = nowIso(); save(); render(); });
+  const info = h('p', { class: 'hint' }, S.lastBackup ? 'Letzte Sicherung: ' + fmtTs(S.lastBackup, true) : 'Noch keine Sicherung erstellt.');
+  const file = h('input', { type: 'file', accept: '.json,application/json', onchange: async e => {
+    const f = e.target.files[0]; if (!f) return;
+    try {
+      const data = JSON.parse(await f.text());
+      if (!data || !Array.isArray(data.classes)) throw new Error('Das ist keine Notenbuch-Sicherung.');
+      const how = await dlg('Sicherung einspielen', h('div', {},
+        h('p', {}, '„' + f.name + '“ enthält ' + data.classes.length + ' Klassen.'),
+        h('p', { class: 'hint' }, 'Zusammenführen: Einträge von beiden Geräten bleiben erhalten, bei Unterschieden gilt der neuere Eintrag. Ersetzen: Der Stand auf diesem Gerät wird verworfen.')), [
+        { label: 'Abbrechen', value: null },
+        { label: 'Ersetzen', cls: 'danger', value: 'replace' },
+        { label: 'Zusammenführen', primary: true, value: 'merge' }
+      ]);
+      e.target.value = '';
+      if (!how) return;
+      const ui = S.ui;
+      S = how === 'merge' ? mergeState(S, Object.assign(emptyState(), data)) : Object.assign(emptyState(), data);
+      if (how === 'merge') S.ui = ui;
+      save(); render();
+      info.textContent = how === 'merge' ? 'Sicherung zusammengeführt.' : 'Sicherung eingespielt.';
+    } catch (err) { info.textContent = 'Fehler: ' + err.message; }
+  } });
+  await dlg('Sicherung & Einstellungen', h('div', {},
+    h('p', { class: 'hint' }, 'Die Daten liegen nur im Browser dieses Geräts. Die Sicherungsdatei z. B. in OneDrive ablegen und auf einem anderen Gerät wieder einspielen.'),
+    h('div', { class: 'field' }, h('button', { type: 'button', class: 'primary', onclick: () => {
+      S.lastBackup = new Date().toISOString(); save();
+      download(JSON.stringify(S, null, 1), 'notenbuch-sicherung-' + S.lastBackup.slice(0, 10) + '.json', 'application/json');
+      info.textContent = 'Letzte Sicherung: ' + fmtTs(S.lastBackup, true);
+    } }, 'Sicherung herunterladen')),
+    field('Sicherung einspielen (zusammenführen oder ersetzen)', file),
+    info,
+    field('Wert von + und − bei der Berechnung', tend)),
+    [{ label: 'Schließen', primary: true, value: true }]);
+}
+
+document.getElementById('btnBackup').addEventListener('click', backupDialog);
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+render();
+</script>
+</body>
+</html>

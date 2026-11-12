@@ -1,0 +1,7 @@
+# Sicherheitsnetz: Es wird grundsätzlich NICHTS hochgeladen,
+# außer den hier ausdrücklich freigegebenen Dateien der App.
+# So können Namenslisten, Excel-Dateien und Sicherungen mit
+# Schülerdaten nie versehentlich im öffentlichen Repository landen.
+*
+!.gitignore
+!index.html
