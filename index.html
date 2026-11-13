@@ -82,6 +82,15 @@ td.cell input.bad { border-color: var(--bad); color: var(--bad); }
 td.cell .ts { display: block; font-size: 10.5px; color: var(--muted); margin-top: 2px; min-height: 13px; white-space: nowrap; }
 .hide-ts .ts { display: none; }
 td.avg { font-variant-numeric: tabular-nums; min-width: 64px; }
+td.calc { color: var(--muted); }
+th.calc, th.final { min-width: 84px; }
+th small { display: block; font-weight: 400; color: var(--muted); font-size: 11px; }
+th.final, td.note { background: var(--soft); }
+.seg { display: inline-flex; }
+.seg button { border-radius: 0; margin-left: -1px; }
+.seg button:first-child { border-radius: 8px 0 0 8px; margin-left: 0; }
+.seg button:last-child { border-radius: 0 8px 8px 0; }
+.seg button.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); position: relative; }
 td.note { font-weight: 700; font-size: 18px; min-width: 56px; }
 button.check { width: 44px; height: 36px; padding: 0; font-size: 18px; }
 button.check.on { background: var(--good); border-color: var(--good); color: #fff; }
@@ -289,21 +298,57 @@ function gradeVal(v) {
   if (v[1] === '-') n += t;
   return n;
 }
-function calcStudent(tab, sid) {
-  const cells = tab.cells[sid] || {};
+/* Halbjahre: Jede Leistung gehört zu Halbjahr 1 oder 2 (ohne Angabe: 1).
+   Zeugnisnote eines Halbjahrs = gewichtetes Mittel der Bereichsdurchschnitte
+   (Standard: Allgemeine Leistungen und Klassenarbeiten je zur Hälfte).
+   Jahresnote: je Bereich (1. Halbjahr × 1 + 2. Halbjahr × 2) ÷ 3, danach das Mittel der Bereiche.
+   Gerechnet wird durchgehend mit ungerundeten Werten. */
+const HALF_WEIGHT = { 1: 1, 2: 2 };
+const colHalf = col => col.half === 2 ? 2 : 1;
+function catAvg(tab, sid, catId, half) {
+  let s = 0, f = 0;
+  for (const col of tab.columns) {
+    if (col.catId !== catId || colHalf(col) !== half) continue;
+    const c = getCell(tab, sid, col.id);
+    if (c) { s += gradeVal(c.v) * col.factor; f += col.factor; }
+  }
+  return f > 0 ? s / f : null;
+}
+function catYear(tab, sid, catId) {
+  const a = catAvg(tab, sid, catId, 1), b = catAvg(tab, sid, catId, 2);
+  if (a == null) return b;
+  if (b == null) return a;
+  return (a * HALF_WEIGHT[1] + b * HALF_WEIGHT[2]) / (HALF_WEIGHT[1] + HALF_WEIGHT[2]);
+}
+/* view: 1, 2 (Halbjahr) oder 'J' (Jahr) */
+function calcStudent(tab, sid, view) {
   let sum = 0, wsum = 0;
   for (const cat of tab.categories) {
-    let s = 0, f = 0;
-    for (const col of tab.columns) {
-      if (col.catId !== cat.id) continue;
-      const c = getCell(tab, sid, col.id);
-      if (!c) continue;
-      s += gradeVal(c.v) * col.factor; f += col.factor;
-    }
-    if (f > 0 && cat.weight > 0) { sum += (s / f) * cat.weight; wsum += cat.weight; }
+    const v = view === 'J' ? catYear(tab, sid, cat.id) : catAvg(tab, sid, cat.id, view);
+    if (v != null && cat.weight > 0) { sum += v * cat.weight; wsum += cat.weight; }
   }
   return wsum > 0 ? sum / wsum : null;
 }
+/* Berechnete Spalten je Ansicht; dieselbe Liste dient Tabelle und CSV-Export. */
+function calcColumns(tab, view) {
+  const defs = [];
+  if (view === 'J') {
+    for (const cat of tab.categories) {
+      defs.push({ label: cat.name, sub: '1. Halbjahr', get: sid => catAvg(tab, sid, cat.id, 1) });
+      defs.push({ label: cat.name, sub: '2. Halbjahr', get: sid => catAvg(tab, sid, cat.id, 2) });
+      defs.push({ label: cat.name, sub: 'Jahr', get: sid => catYear(tab, sid, cat.id) });
+    }
+    defs.push({ label: 'Zeugnisnote', sub: '1. Halbjahr', get: sid => calcStudent(tab, sid, 1) });
+    defs.push({ label: 'Zeugnisnote', sub: '2. Halbjahr', get: sid => calcStudent(tab, sid, 2) });
+    defs.push({ label: 'Jahresnote', sub: '', final: true, get: sid => calcStudent(tab, sid, 'J') });
+  } else {
+    for (const cat of tab.categories) defs.push({ label: 'Ø ' + cat.name, sub: '', get: sid => catAvg(tab, sid, cat.id, view) });
+    defs.push({ label: 'Zeugnisnote', sub: view + '. Halbjahr', final: true, get: sid => calcStudent(tab, sid, view) });
+  }
+  return defs;
+}
+const meanOf = list => { const v = list.filter(x => x != null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+const fmtOpt = v => v == null ? '–' : fmtNum(v);
 function colAvg(tab, col, students) {
   let s = 0, n = 0;
   for (const st of students) { const c = getCell(tab, st.id, col.id); if (c) { s += gradeVal(c.v); n++; } }
@@ -347,22 +392,31 @@ function loadDemo() {
   const cell = (v, d) => ({ v, t: stamp(d), m: stamp(d) });
   const names = ['Becker, Lena', 'Demir, Emre', 'Fischer, Jonas', 'Krüger, Mia', 'Nowak, Paul', 'Wagner, Sophie'];
   const students = names.map(name => ({ id: uid(), name }));
-  const s = uid(), m = uid(), k1 = uid(), k2 = uid(), m1 = uid(), z1 = uid(), z2 = uid();
-  const grades = [['2+', '3', '2'], ['4', '3-', '3'], ['1-', '2', '1'], ['3', '', '2-'], ['5', '4+', '4'], ['2', '2-', '']];
+  const al = uid(), ka = uid(), z1 = uid(), z2 = uid();
+  // Spalten: [Name, Bereich, Faktor, Halbjahr, Alter in Tagen, Noten je Schüler]
+  const plan = [
+    ['Klassenarbeit 1', ka, 1, 1, 150, ['2+', '4', '1-', '3', '5', '2']],
+    ['Klassenarbeit 2', ka, 1, 1, 110, ['3', '3-', '2', '', '4+', '2-']],
+    ['Hausaufgaben', al, 1, 1, 130, ['2', '3', '1', '2-', '4', '']],
+    ['Mündlich', al, 2, 1, 100, ['2-', '3+', '1', '3', '4-', '2']],
+    ['Klassenarbeit 3', ka, 1, 2, 40, ['2', '3', '1', '3+', '4', '3']],
+    ['Referat (zählt als Klassenarbeit)', ka, 1, 2, 20, ['1-', '', '2+', '2', '', '2']],
+    ['Mündlich', al, 2, 2, 5, ['2', '3', '1-', '2', '3-', '2+']]
+  ];
   const mathe = { id: uid(), type: 'grades', name: 'Mathe', cells: {},
-    categories: [{ id: s, name: 'Schriftlich', weight: 50 }, { id: m, name: 'Mündlich', weight: 50 }],
-    columns: [{ id: k1, name: 'Klassenarbeit 1', catId: s, factor: 2 }, { id: k2, name: 'Test', catId: s, factor: 1 }, { id: m1, name: 'Mündlich 1', catId: m, factor: 1 }] };
+    categories: [{ id: al, name: 'Allgemeine Leistungen', weight: 50 }, { id: ka, name: 'Klassenarbeiten', weight: 50 }],
+    columns: plan.map(p => ({ id: uid(), name: p[0], catId: p[1], factor: p[2], half: p[3] })) };
   const zettel = { id: uid(), type: 'list', name: 'Rückläufer', cells: {},
     columns: [{ id: z1, name: 'Elternbrief Wandertag', type: 'check' }, { id: z2, name: 'Notiz', type: 'text' }] };
   students.forEach((st, i) => {
-    const g = grades[i], c = mathe.cells[st.id] = {};
-    if (g[0]) c[k1] = cell(g[0], 14); if (g[1]) c[k2] = cell(g[1], 6); if (g[2]) c[m1] = cell(g[2], 2);
+    const c = mathe.cells[st.id] = {};
+    plan.forEach((p, k) => { if (p[5][i]) c[mathe.columns[k].id] = cell(p[5][i], p[4]); });
     zettel.cells[st.id] = {};
     if (i % 3 !== 1) zettel.cells[st.id][z1] = cell(true, 1);
   });
   zettel.cells[students[1].id][z2] = cell('Zettel verloren, neuer mitgegeben', 1);
   const cls = { id: uid(), name: '7b (Beispiel)', students, tabs: [mathe, zettel] };
-  S.classes.push(cls); S.ui = { classId: cls.id, tabId: mathe.id };
+  S.classes.push(cls); S.ui = { classId: cls.id, tabId: mathe.id, view: 1 };
   save(); render();
 }
 
@@ -395,7 +449,7 @@ async function addTab() {
   if (!ok) return;
   const t = { id: uid(), type: type.value, name: name.value.trim(), m: nowIso(), columns: [], cells: {} };
   if (t.type === 'grades') {
-    t.categories = [{ id: uid(), name: 'Schriftlich', weight: 50 }, { id: uid(), name: 'Mündlich', weight: 50 }];
+    t.categories = [{ id: uid(), name: 'Allgemeine Leistungen', weight: 50 }, { id: uid(), name: 'Klassenarbeiten', weight: 50 }];
   }
   cls.tabs.push(t); S.ui.tabId = t.id; save(); render();
 }
@@ -514,39 +568,44 @@ async function importStudents(cls) {
 
 /* ---------- Notentabelle ---------- */
 function renderGrades(panel, cls, tab) {
+  const view = S.ui.view === 2 || S.ui.view === 'J' ? S.ui.view : 1;
+  const setView = v => { S.ui.view = v; saveLocal(); render(); };
   const catName = id => (tab.categories.find(c => c.id === id) || {}).name || '?';
+  const cols = view === 'J' ? [] : tab.columns.filter(c => colHalf(c) === view);
+  const defs = calcColumns(tab, view);
   panel.append(h('div', { class: 'bar' },
-    h('button', { class: 'primary', onclick: () => editColumn(tab, null) }, '+ Leistung'),
+    h('span', { class: 'seg', role: 'group', 'aria-label': 'Zeitraum' },
+      [[1, '1. Halbjahr'], [2, '2. Halbjahr'], ['J', 'Jahr']].map(([v, label]) =>
+        h('button', { class: v === view ? 'active' : '', 'aria-pressed': String(v === view), onclick: () => setView(v) }, label))),
+    view === 'J' ? null : h('button', { class: 'primary', onclick: () => editColumn(tab, null, view) }, '+ Leistung'),
     h('button', { onclick: () => editCategories(tab) }, 'Gewichtung'),
-    tsToggle(),
-    h('span', { class: 'hint' }, tab.categories.map(c => c.name + ' ' + c.weight + ' %').join(' · ')),
+    view === 'J' ? null : tsToggle(),
     h('span', { class: 'grow' }),
-    h('button', { class: 'small', onclick: () => exportCsv(cls, tab) }, 'CSV-Export'),
+    h('button', { class: 'small', onclick: () => exportCsv(cls, tab, view) }, 'CSV-Export'),
     h('button', { class: 'small', onclick: () => renameTab(tab) }, 'Umbenennen'),
     h('button', { class: 'small danger', onclick: () => deleteTab(cls, tab) }, 'Löschen')));
+  panel.append(h('p', { class: 'hint' }, tab.categories.map(c => c.name + ' ' + c.weight + ' %').join(' · ') +
+    (view === 'J' ? ' · Jahr: je Bereich (1. Halbjahr × 1 + 2. Halbjahr × 2) ÷ 3' : '')));
   if (!cls.students.length) { panel.append(h('div', { class: 'empty' }, 'Zuerst im Reiter „Schüler“ Namen anlegen oder importieren.')); return; }
-  if (!tab.columns.length) panel.append(h('p', { class: 'hint' }, 'Mit „+ Leistung“ eine Spalte anlegen (z. B. Klassenarbeit 1). Noten als 1–6 eingeben, optional mit + oder − (z. B. 2+).'));
+  if (view !== 'J' && !cols.length) panel.append(h('p', { class: 'hint' }, 'Im ' + view + '. Halbjahr gibt es noch keine Leistung. Mit „+ Leistung“ eine Spalte anlegen (z. B. Klassenarbeit 1). Noten als 1–6 eingeben, optional mit + oder − (z. B. 2+).'));
 
   const footCells = {};
+  const defFoot = defs.map(() => h('td', {}));
   const refreshFoot = () => {
-    for (const col of tab.columns) { const a = colAvg(tab, col, cls.students); footCells[col.id].textContent = a == null ? '–' : fmtNum(a); }
-    const all = cls.students.map(s => calcStudent(tab, s.id)).filter(v => v != null);
-    footCells._avg.textContent = all.length ? fmtNum(all.reduce((a, b) => a + b, 0) / all.length) : '–';
+    for (const col of cols) footCells[col.id].textContent = fmtOpt(colAvg(tab, col, cls.students));
+    defs.forEach((d, i) => { defFoot[i].textContent = fmtOpt(meanOf(cls.students.map(s => d.get(s.id)))); });
   };
   const thead = h('thead', {}, h('tr', {},
     h('th', { class: 'name' }, 'Name'),
-    tab.columns.map(col => h('th', {}, h('button', { class: 'colbtn', title: 'Leistung bearbeiten', onclick: () => editColumn(tab, col) },
+    cols.map(col => h('th', {}, h('button', { class: 'colbtn', title: 'Leistung bearbeiten', onclick: () => editColumn(tab, col, view) },
       col.name, h('small', {}, catName(col.catId) + (col.factor !== 1 ? ' · ×' + String(col.factor).replace('.', ',') : ''))))),
-    h('th', {}, 'Note')));
+    defs.map(d => h('th', { class: d.final ? 'final' : 'calc' }, d.label, d.sub ? h('small', {}, d.sub) : null))));
   const tbody = h('tbody', {}, cls.students.map(st => {
-    const avgTd = h('td', { class: 'avg note' });
-    const refresh = () => {
-      const a = calcStudent(tab, st.id);
-      avgTd.textContent = a == null ? '–' : fmtNum(a);
-    };
+    const defTds = defs.map(d => h('td', { class: d.final ? 'avg note' : 'avg calc' }));
+    const refresh = () => defs.forEach((d, i) => { defTds[i].textContent = fmtOpt(d.get(st.id)); });
     refresh();
     return h('tr', {}, h('td', { class: 'name' }, st.name),
-      tab.columns.map(col => {
+      cols.map(col => {
         const c = getCell(tab, st.id, col.id);
         const ts = h('span', { class: 'ts' }, tsText(c));
         const inp = h('input', { type: 'text', class: 'grade', value: c ? c.v : '', maxlength: 2, autocomplete: 'off', inputmode: 'text',
@@ -568,18 +627,20 @@ function renderGrades(panel, cls, tab) {
           if (next) { next.focus(); next.select(); } else inp.blur();
         });
         return h('td', { class: 'cell' }, inp, ts);
-      }), avgTd);
+      }), defTds);
   }));
   const tfoot = h('tfoot', {}, h('tr', {}, h('td', { class: 'name' }, 'Klassenschnitt'),
-    tab.columns.map(col => footCells[col.id] = h('td', {})), footCells._avg = h('td', {})));
+    cols.map(col => footCells[col.id] = h('td', {})), defFoot));
   refreshFoot();
   panel.append(h('div', { class: 'scroll' + (S.settings.showTs ? '' : ' hide-ts') }, h('table', {}, thead, tbody, tfoot)));
 }
 
-async function editColumn(tab, col) {
+async function editColumn(tab, col, view) {
   const isNew = !col;
   const name = h('input', { type: 'text', value: col ? col.name : '', placeholder: 'z. B. Klassenarbeit 1' });
   const cat = h('select', { value: col ? col.catId : tab.categories[0].id }, tab.categories.map(c => h('option', { value: c.id }, c.name + ' (' + c.weight + ' %)')));
+  const half = h('select', { value: String(col ? colHalf(col) : (view === 2 ? 2 : 1)) },
+    h('option', { value: '1' }, '1. Halbjahr'), h('option', { value: '2' }, '2. Halbjahr'));
   const factor = h('input', { type: 'number', min: '0.1', step: '0.1', value: col ? col.factor : 1 });
   const actions = [
     { label: 'Abbrechen', value: null },
@@ -587,7 +648,10 @@ async function editColumn(tab, col) {
   ];
   if (!isNew) actions.unshift({ label: 'Leistung löschen', cls: 'danger left', value: 'del' });
   const r = await dlg(isNew ? 'Neue Leistung' : 'Leistung bearbeiten',
-    h('div', {}, field('Bezeichnung', name), field('Bereich', cat), field('Faktor innerhalb des Bereichs (z. B. 2 = zählt doppelt)', factor)), actions);
+    h('div', {}, field('Bezeichnung', name),
+      field('Zählt zu (z. B. ein Referat zu den Klassenarbeiten)', cat),
+      field('Halbjahr', half),
+      field('Gewichtung innerhalb des Bereichs (z. B. 2 = zählt doppelt)', factor)), actions);
   if (!r) return;
   if (r === 'del') {
     if (!await confirmDlg('Leistung löschen', '„' + col.name + '“ mit allen eingetragenen Noten löschen?')) return;
@@ -595,9 +659,9 @@ async function editColumn(tab, col) {
     markDeleted(col.id);
     Object.values(tab.cells).forEach(cells => { delete cells[col.id]; });
   } else if (isNew) {
-    tab.columns.push({ id: uid(), name: name.value.trim(), catId: cat.value, factor: +factor.value, created: nowIso(), m: nowIso() });
+    tab.columns.push({ id: uid(), name: name.value.trim(), catId: cat.value, half: +half.value, factor: +factor.value, created: nowIso(), m: nowIso() });
   } else {
-    col.name = name.value.trim(); col.catId = cat.value; col.factor = +factor.value; col.m = nowIso();
+    col.name = name.value.trim(); col.catId = cat.value; col.half = +half.value; col.factor = +factor.value; col.m = nowIso();
   }
   save(); render();
 }
@@ -634,14 +698,17 @@ async function editCategories(tab) {
   save(); render();
 }
 
-function exportCsv(cls, tab) {
+function exportCsv(cls, tab, view) {
   const q = v => '"' + String(v).replace(/"/g, '""') + '"';
-  const rows = [['Name', ...tab.columns.map(c => c.name), 'Note'].map(q).join(';')];
+  const cols = view === 'J' ? [] : tab.columns.filter(c => colHalf(c) === view);
+  const defs = calcColumns(tab, view);
+  const rows = [['Name', ...cols.map(c => c.name), ...defs.map(d => d.label + (d.sub ? ' ' + d.sub : ''))].map(q).join(';')];
   for (const st of cls.students) {
-    const a = calcStudent(tab, st.id);
-    rows.push([st.name, ...tab.columns.map(c => (getCell(tab, st.id, c.id) || {}).v || ''), a == null ? '' : fmtNum(a)].map(q).join(';'));
+    rows.push([st.name, ...cols.map(c => (getCell(tab, st.id, c.id) || {}).v || ''),
+      ...defs.map(d => { const v = d.get(st.id); return v == null ? '' : fmtNum(v); })].map(q).join(';'));
   }
-  download('﻿' + rows.join('\r\n'), cls.name + '-' + tab.name + '.csv', 'text/csv;charset=utf-8');
+  const suffix = view === 'J' ? 'Jahr' : view + '. Halbjahr';
+  download('﻿' + rows.join('\r\n'), cls.name + '-' + tab.name + '-' + suffix + '.csv', 'text/csv;charset=utf-8');
 }
 
 /* ---------- Listen (Rückläufer, Notizen) ---------- */
