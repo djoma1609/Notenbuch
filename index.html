@@ -1105,9 +1105,11 @@ async function sync(force) {
       if (!force && uiBusy()) { setSync('ok'); scheduleSync(4000); return; }
       const before = canon(strip(S));
       const keep = { ui: S.ui, showTs: S.settings.showTs, lastBackup: S.lastBackup };
-      S = mergeState(remote, S);
-      S.ui = keep.ui; S.settings.showTs = keep.showTs; S.lastBackup = keep.lastBackup;
-      if (canon(strip(S)) !== before) { saveLocal(); if (!force) render(); else pendingRender = true; }
+      const merged = mergeState(remote, S);
+      merged.ui = keep.ui; merged.settings.showTs = keep.showTs; merged.lastBackup = keep.lastBackup;
+      // Den Stand nur austauschen, wenn sich etwas geändert hat – und dann immer neu zeichnen.
+      // Sonst arbeitet die angezeigte Tabelle auf dem alten Stand weiter und Eingaben gehen verloren.
+      if (canon(strip(merged)) !== before) { S = merged; saveLocal(); if (!force) render(); else pendingRender = true; }
     }
     if (!remote || (auth.key && !raw.enc) || canon(strip(S)) !== canon(strip(remote))) {
       const plain = JSON.stringify(strip(S));
