@@ -105,7 +105,7 @@ td.cell input.grade { width: 56px; text-align: center; padding: 6px 4px; font-we
 td.cell input.grade[data-g="1"], td.cell input.grade[data-g="2"] { background: var(--g-good-bg); color: var(--g-good); border-color: transparent; }
 td.cell input.grade[data-g="3"], td.cell input.grade[data-g="4"] { background: var(--g-mid-bg); color: var(--g-mid); border-color: transparent; }
 td.cell input.grade[data-g="5"], td.cell input.grade[data-g="6"] { background: var(--g-low-bg); color: var(--g-low); border-color: transparent; }
-td.cell input.txt { min-width: 150px; }
+td.cell textarea.txt { display: block; min-width: 220px; min-height: 0; resize: none; overflow: hidden; text-align: left; line-height: 1.35; }
 td.cell input.bad { border-color: var(--bad); color: var(--bad); background: var(--panel); }
 td.cell .ts { display: block; font-size: 10.5px; color: var(--muted); margin-top: 2px; min-height: 13px; white-space: nowrap; }
 .hide-ts .ts { display: none; }
@@ -773,7 +773,11 @@ function renderList(panel, cls, tab) {
           save(); refreshFoot();
         });
       } else {
-        ctl = h('input', { type: 'text', class: 'txt', value: c ? c.v : '', 'aria-label': col.name + ' – ' + st.name, title: tsTitle(c) });
+        // Mehrzeiliges Feld, das mit dem Text mitwächst – so ist die ganze Notiz lesbar.
+        ctl = h('textarea', { class: 'txt', rows: 1, value: c ? c.v : '', 'aria-label': col.name + ' – ' + st.name, title: tsTitle(c) });
+        const fit = () => { ctl.style.height = 'auto'; ctl.style.height = (ctl.scrollHeight + 2) + 'px'; };
+        ctl.addEventListener('input', fit);
+        requestAnimationFrame(fit);
         ctl.addEventListener('change', () => {
           const n = setCell(tab, st.id, col.id, ctl.value.trim());
           ctl.title = tsTitle(n); ts.textContent = tsText(n);
