@@ -767,7 +767,7 @@ const CLIENT_ID = '4f8b18df-b021-4eb5-be30-59f8c0ed1fb1';
 const REDIRECT = 'https://djoma1609.github.io/Notenbuch/';
 const AUTH_URL = 'https://login.microsoftonline.com/consumers/oauth2/v2.0/';
 const SCOPE = 'Files.ReadWrite.AppFolder offline_access';
-const FILE_URL = 'https://graph.microsoft.com/v1.0/me/drive/special/approot:/notenbuch.json';
+const FILE_URL = 'https://graph.microsoft.com/v1.0/me/drive/special/approot:/notenbuch-daten.js';
 const AUTH_KEY = 'lehrerkalender.auth', PKCE_KEY = 'lehrerkalender.pkce';
 const canSync = (location.origin + location.pathname).startsWith(REDIRECT);
 
@@ -842,12 +842,36 @@ async function getToken() {
   }
 }
 
-/* Zugriff auf die Datei im App-Ordner der OneDrive (Apps/Notenbuch/notenbuch.json) */
+/* Zugriff auf die Datei im App-Ordner der OneDrive (Apps/Notenbuch/notenbuch-daten.js) */
 async function httpError(r) {
   let detail = '';
   try { detail = ((await r.json()).error || {}).message || ''; } catch (e) {}
   if (r.status === 401 && auth) { auth.exp = 0; saveAuth(); }
   return new Error('OneDrive meldet Fehler ' + r.status + (detail ? ': ' + detail : ''));
+}
+/* Die Datei enthält die Daten als Funktionsaufruf: __notenbuch({...}); */
+const WRAP = '__notenbuch';
+function unwrap(text) {
+  const t = text.trim();
+  if (!t.startsWith(WRAP + '(') || !t.endsWith(');')) throw new Error('Datei hat ein unerwartetes Format');
+  return JSON.parse(t.slice(WRAP.length + 1, -2));
+}
+function loadByScript(url) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    let finished = false;
+    const done = (err, value) => {
+      if (finished) return;
+      finished = true; clearTimeout(timer); delete window[WRAP]; s.remove();
+      if (err) reject(err); else resolve(value);
+    };
+    const timer = setTimeout(() => done(new Error('Zeitüberschreitung')), 20000);
+    window[WRAP] = value => done(null, value);
+    s.onerror = () => done(new Error('Skript wurde nicht geladen'));
+    s.onload = () => setTimeout(() => done(new Error('Skript ohne Daten')), 0);
+    s.src = url;
+    document.head.append(s);
+  });
 }
 const cloud = {
   async meta(token) {
@@ -863,20 +887,30 @@ const cloud = {
     if (url) {
       try {
         const r = await fetch(url);
-        if (r.ok) return await r.json();
+        if (r.ok) return unwrap(await r.text());
         first = 'HTTP ' + r.status;
       } catch (e) { first = e.message; }
     }
+    let second;
     try {
       const r = await fetch(FILE_URL + ':/content', { headers: { Authorization: 'Bearer ' + token } });
       if (!r.ok) throw await httpError(r);
-      return await r.json();
-    } catch (e) {
-      throw new Error('direkter Weg: ' + first + '; über Graph: ' + e.message);
+      return unwrap(await r.text());
+    } catch (e) { second = e.message; }
+    // Dritter Weg: Die Datei ist als Skript verpackt und lässt sich deshalb auch dann laden,
+    // wenn der Download-Server dem Browser das direkte Auslesen nicht erlaubt.
+    let third = 'keine Download-Adresse';
+    if (url) {
+      try { return await loadByScript(url); } catch (e) { third = e.message; }
     }
+    let probe = 'nicht geprüft';
+    if (url) {
+      try { await fetch(url, { mode: 'no-cors' }); probe = 'Server erreichbar'; } catch (e) { probe = 'Server nicht erreichbar'; }
+    }
+    throw new Error('Weg 1: ' + first + '; Weg 2: ' + second + '; Weg 3: ' + third + '; ' + probe);
   },
   async upload(token, text) {
-    const r = await fetch(FILE_URL + ':/content', { method: 'PUT', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'text/plain' }, body: text });
+    const r = await fetch(FILE_URL + ':/content', { method: 'PUT', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'text/plain' }, body: WRAP + '(' + text + ');' });
     if (!r.ok) throw await httpError(r);
     return r.json();
   }
