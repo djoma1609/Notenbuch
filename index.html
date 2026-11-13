@@ -261,7 +261,7 @@ function dlg(title, content, actions) {
     d.addEventListener('cancel', e => { e.preventDefault(); close(null); });
     document.body.append(d);
     d.showModal();
-    const f = d.querySelector('input[type=text], textarea');
+    const f = d.querySelector('input[type=text], input[type=password], textarea');
     if (f) { f.focus(); f.select(); }
   });
 }
@@ -783,7 +783,7 @@ function markDirty() {
 }
 function setSync(state, msg) {
   syncState = state; syncMsg = msg || '';
-  const labels = { off: 'Abgleich aus', ok: 'Abgleich ✓', busy: 'Abgleich …', offline: 'Offline', error: 'Abgleich ⚠', login: 'Anmelden ⚠' };
+  const labels = { off: 'Abgleich aus', ok: 'Abgleich ✓', busy: 'Abgleich …', offline: 'Offline', error: 'Abgleich ⚠', login: 'Anmelden ⚠', pw: 'Passwort ⚠' };
   const b = document.getElementById('btnSync');
   b.textContent = labels[state];
   b.title = msg || '';
@@ -856,10 +856,24 @@ const cloud = {
     if (!r.ok) throw await httpError(r);
     return r.json();
   },
-  async download(meta) {
-    const r = await fetch(meta['@microsoft.graph.downloadUrl']);
-    if (!r.ok) throw await httpError(r);
-    return r.json();
+  async download(meta, token) {
+    // Erster Weg: die vorab berechtigte Download-Adresse. Zweiter Weg: über Graph mit Anmeldung.
+    const url = meta['@microsoft.graph.downloadUrl'] || meta['@content.downloadUrl'];
+    let first = 'keine Download-Adresse erhalten';
+    if (url) {
+      try {
+        const r = await fetch(url);
+        if (r.ok) return await r.json();
+        first = 'HTTP ' + r.status;
+      } catch (e) { first = e.message; }
+    }
+    try {
+      const r = await fetch(FILE_URL + ':/content', { headers: { Authorization: 'Bearer ' + token } });
+      if (!r.ok) throw await httpError(r);
+      return await r.json();
+    } catch (e) {
+      throw new Error('direkter Weg: ' + first + '; über Graph: ' + e.message);
+    }
   },
   async upload(token, text) {
     const r = await fetch(FILE_URL + ':/content', { method: 'PUT', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'text/plain' }, body: text });
@@ -867,6 +881,87 @@ const cloud = {
     return r.json();
   }
 };
+
+/* Verschlüsselung der OneDrive-Datei: Aus dem Passwort wird per PBKDF2 ein AES-256-Schlüssel
+   abgeleitet. Der Schlüssel bleibt auf dem Gerät, in der OneDrive liegt nur Verschlüsseltes. */
+const PW_MSG = 'Die Daten in der OneDrive sind verschlüsselt. Bitte das Passwort eingeben.';
+function toB64(buf) {
+  const b = new Uint8Array(buf); let s = '';
+  for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+const fromB64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+async function deriveKey(pw, salt) {
+  const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveBits']);
+  return toB64(await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: fromB64(salt), iterations: 310000, hash: 'SHA-256' }, base, 256));
+}
+const aesKey = key => crypto.subtle.importKey('raw', fromB64(key), 'AES-GCM', false, ['encrypt', 'decrypt']);
+async function encryptText(text) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const data = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await aesKey(auth.key), new TextEncoder().encode(text));
+  return { enc: 1, salt: auth.salt, iv: toB64(iv), data: toB64(data) };
+}
+async function decryptRaw(raw, key) {
+  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(raw.iv) }, await aesKey(key), fromB64(raw.data));
+  return JSON.parse(new TextDecoder().decode(plain));
+}
+/* Passwort auf einem weiteren Gerät eingeben. Liefert false, wenn es nicht passt. */
+async function unlock(pw) {
+  const token = await getToken();
+  if (!token) throw new Error('Bitte zuerst erneut bei Microsoft anmelden.');
+  const meta = await cloud.meta(token);
+  const raw = meta && await cloud.download(meta, token);
+  if (raw && raw.enc) {
+    const key = await deriveKey(pw, raw.salt);
+    try { await decryptRaw(raw, key); } catch (e) { return false; }
+    auth.key = key; auth.salt = raw.salt;
+  }
+  delete auth.needPw; auth.dirty = true; saveAuth();
+  return true;
+}
+/* Passwort neu festlegen. mergeFirst: vorher den Stand aus der OneDrive einarbeiten. */
+async function setPassword(pw, mergeFirst) {
+  if (mergeFirst) {
+    await sync(true);
+    if (syncState !== 'ok') throw new Error(syncMsg || 'Der Abgleich ist gerade nicht möglich.');
+  }
+  auth.salt = toB64(crypto.getRandomValues(new Uint8Array(16)));
+  auth.key = await deriveKey(pw, auth.salt);
+  delete auth.needPw; auth.overwrite = true; auth.dirty = true; saveAuth();
+  await sync(true);
+  if (syncState !== 'ok') throw new Error(syncMsg || 'Der Abgleich ist gerade nicht möglich.');
+}
+async function pwDialog(mode) {
+  const p1 = h('input', { type: 'password', autocomplete: mode === 'unlock' ? 'current-password' : 'new-password' });
+  const p2 = h('input', { type: 'password', autocomplete: 'new-password' });
+  const msg = h('p', { class: 'hint' });
+  const texts = {
+    unlock: 'Die Daten in der OneDrive sind verschlüsselt. Gib das Passwort ein, das du auf dem ersten Gerät festgelegt hast.',
+    set: 'Mit dem Passwort wird die Datei in der OneDrive verschlüsselt. Auf jedem weiteren Gerät gibst du es einmal ein. Mindestens 8 Zeichen. Es wird nirgends hinterlegt und kann nicht wiederhergestellt werden.',
+    reset: 'Neues Passwort festlegen. Die Datei in der OneDrive wird mit dem Stand dieses Geräts neu geschrieben. Andere Geräte fragen danach nach dem neuen Passwort und bringen ihre Einträge wieder ein.'
+  };
+  const body = h('div', {}, h('p', { class: 'hint' }, texts[mode]), field('Passwort', p1), mode === 'unlock' ? null : field('Passwort wiederholen', p2), msg);
+  const actions = [{ label: 'Abbrechen', value: null }];
+  if (mode === 'unlock') actions.unshift({ label: 'Passwort vergessen', cls: 'danger left', value: 'reset' });
+  actions.push({ label: mode === 'unlock' ? 'Entsperren' : 'Festlegen', primary: true, fn: async () => {
+    try {
+      if (mode === 'unlock') {
+        msg.textContent = 'Prüfe …';
+        if (!await unlock(p1.value)) { msg.textContent = 'Das Passwort passt nicht.'; return KEEP; }
+        await sync(true);
+      } else {
+        if (p1.value.length < 8) { msg.textContent = 'Bitte mindestens 8 Zeichen.'; return KEEP; }
+        if (p1.value !== p2.value) { msg.textContent = 'Die beiden Eingaben stimmen nicht überein.'; return KEEP; }
+        msg.textContent = 'Verschlüssele …';
+        await setPassword(p1.value, mode === 'set');
+      }
+      return true;
+    } catch (e) { msg.textContent = 'Fehler: ' + e.message; return KEEP; }
+  } });
+  const r = await dlg(mode === 'unlock' ? 'Passwort eingeben' : 'Passwort festlegen', body, actions);
+  if (r === 'reset') return pwDialog('reset');
+  return r;
+}
 
 /* Nur diese Teile werden abgeglichen; Ansicht und Geräte-Einstellungen bleiben lokal. */
 function strip(s) {
@@ -884,13 +979,26 @@ async function sync(force) {
   if (!auth || syncing) return;
   if (!navigator.onLine) { setSync('offline', 'Keine Verbindung – der Abgleich folgt automatisch.'); return; }
   syncing = true; setSync('busy');
+  let step = 'Anmeldung prüfen';
   try {
     const token = await getToken();
     if (!token) { setSync('login', 'Bitte erneut bei Microsoft anmelden.'); return; }
+    if (auth.needPw && !auth.overwrite) { setSync('pw', PW_MSG); return; }
     const gen = dirtyGen;
+    step = 'Dateiinfo abrufen';
     const meta = await cloud.meta(token);
     if (meta && !force && !auth.dirty && meta.eTag === auth.etag) { auth.last = nowIso(); saveAuth(); setSync('ok'); return; }
-    const remote = meta ? Object.assign(emptyState(), await cloud.download(meta)) : null;
+    step = 'Herunterladen';
+    const raw = meta && !auth.overwrite ? await cloud.download(meta, token) : null;
+    step = 'Zusammenführen';
+    let remote = null;
+    if (raw && raw.enc) {
+      try {
+        if (!auth.key || auth.salt !== raw.salt) throw new Error('Schlüssel fehlt');
+        remote = await decryptRaw(raw, auth.key);
+      } catch (e) { auth.needPw = true; saveAuth(); setSync('pw', PW_MSG); return; }
+    } else if (raw) remote = raw;
+    if (remote) remote = Object.assign(emptyState(), remote);
     if (remote) {
       // Während einer Eingabe oder eines offenen Dialogs nicht dazwischenfunken.
       if (!force && uiBusy()) { setSync('ok'); scheduleSync(4000); return; }
@@ -900,15 +1008,18 @@ async function sync(force) {
       S.ui = keep.ui; S.settings.showTs = keep.showTs; S.lastBackup = keep.lastBackup;
       if (canon(strip(S)) !== before) { saveLocal(); if (!force) render(); else pendingRender = true; }
     }
-    if (!remote || canon(strip(S)) !== canon(strip(remote))) {
-      auth.etag = (await cloud.upload(token, JSON.stringify(strip(S)))).eTag;
+    if (!remote || (auth.key && !raw.enc) || canon(strip(S)) !== canon(strip(remote))) {
+      const plain = JSON.stringify(strip(S));
+      step = 'Hochladen';
+      auth.etag = (await cloud.upload(token, auth.key ? JSON.stringify(await encryptText(plain)) : plain)).eTag;
+      delete auth.overwrite;
     } else auth.etag = meta.eTag;
     if (dirtyGen === gen) auth.dirty = false; else scheduleSync(2500);
     auth.last = nowIso(); saveAuth(); setSync('ok');
   } catch (e) {
     console.error(e);
-    if (e instanceof TypeError || !navigator.onLine) setSync('offline', 'Keine Verbindung – der Abgleich folgt automatisch.');
-    else setSync('error', e.message);
+    if (!navigator.onLine) setSync('offline', 'Keine Verbindung – der Abgleich folgt automatisch.');
+    else setSync('error', 'Schritt „' + step + '“: ' + e.message);
   } finally { syncing = false; }
 }
 let pendingRender = false;
@@ -918,9 +1029,11 @@ async function syncDialog() {
   const describe = () => {
     if (!auth) info.textContent = 'Nicht angemeldet. Die Daten liegen nur auf diesem Gerät.';
     else if (auth.needLogin || syncState === 'login') info.textContent = 'Die Anmeldung ist abgelaufen. Bitte erneut anmelden; deine Einträge bleiben erhalten.';
+    else if (auth.needPw) info.textContent = PW_MSG;
     else if (syncState === 'error') info.textContent = 'Fehler beim Abgleich: ' + syncMsg;
     else if (syncState === 'offline') info.textContent = 'Keine Verbindung. Der Abgleich folgt automatisch, sobald das Gerät wieder online ist.';
-    else info.textContent = auth.last ? 'Angemeldet. Letzter Abgleich: ' + fmtTs(auth.last, true) : 'Angemeldet. Noch kein Abgleich.';
+    else info.textContent = (auth.last ? 'Angemeldet. Letzter Abgleich: ' + fmtTs(auth.last, true) : 'Angemeldet. Noch kein Abgleich.') +
+      (auth.key ? ' Verschlüsselung: aktiv.' : ' Verschlüsselung: aus.');
   };
   describe();
   const body = h('div', {},
@@ -931,13 +1044,18 @@ async function syncDialog() {
     body.append(h('p', { class: 'hint' }, 'Der Abgleich funktioniert nur unter ' + REDIRECT));
   } else if (!auth || auth.needLogin) {
     actions.push({ label: auth ? 'Erneut anmelden' : 'Mit Microsoft anmelden', primary: true, fn: async () => { await login(false); return KEEP; } });
+  } else if (auth.needPw) {
+    actions.push({ label: 'Passwort eingeben', primary: true, value: 'unlock' });
   } else {
+    // Verschlüsselung ist vorbereitet, aber noch nicht freigeschaltet (erst muss der Abgleich stabil laufen).
+    if (auth.key) actions.push({ label: 'Passwort ändern', value: 'set' });
     actions.push({ label: 'Jetzt abgleichen', fn: async () => { await sync(true); describe(); return KEEP; } });
   }
   if (auth) actions.unshift({ label: 'Abmelden', cls: 'danger left', value: 'logout' });
   actions.push({ label: 'Schließen', primary: !actions.some(a => a.primary), value: null });
   const r = await dlg('Automatischer Abgleich', body, actions);
   if (r === 'logout') { auth = null; saveAuth(); clearTimeout(syncTimer); setSync('off'); }
+  if (r === 'unlock' || r === 'set') { await pwDialog(r); return syncDialog(); }
   if (pendingRender) { pendingRender = false; render(); }
 }
 
