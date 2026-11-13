@@ -957,6 +957,9 @@ setInterval(() => { if (!document.hidden) sync(); }, 60000);
 document.getElementById('btnSync').addEventListener('click', syncDialog);
 document.getElementById('btnBackup').addEventListener('click', backupDialog);
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  navigator.serviceWorker.register('sw.js').catch(e => console.warn('Offline-Modus nicht verfügbar:', e));
+}
 render();
 startSync();
 </script>

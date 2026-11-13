@@ -5,3 +5,5 @@
 *
 !.gitignore
 !index.html
+!sw.js
+!README.md
