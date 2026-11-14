@@ -30,7 +30,8 @@ header.top {
   padding: calc(12px + env(safe-area-inset-top)) 16px 12px;
   background: var(--panel); color: var(--accent); border-bottom: 1px solid var(--line);
 }
-header.top h1 { font-size: 21px; font-weight: 600; letter-spacing: .3px; margin: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@font-face { font-family: "NBTitle"; font-weight: 400; font-display: swap; src: url(data:font/woff2;base64,d09GMgABAAAAAAzMABAAAAAAF2wAAAxwAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGwwGYBaLYABwCCoJgnMKj1yOTgsYABKCeAE2AiQDLAQgBYVMByAMggIbshUzUpN6IFOdiTFu6I9ff/79oAf8Oe8Hl4AnjmgwC+Ja9a1zfSvbwLR2o+Zx5MHzEKe+w+1WbjWVuAFcz/g/vZv1IrUZ1usBmjTUWKgLWrO0pO3SrpiHOw8nLjmfFfEkZ/blDjz4Nss3xH/ARAtk813Ae4isPt2VUYoq3EUaB6hMZfWhMuqdeuH5/7nS/iQLqdurCg7pqbU5lZV1avtnZs+GFgmqAVUVCQOYKaJj11NjbHVVLcTzr0oHIlAxYQgGkJh8CZiMU+MdMWA6Mb0AXo32MT7gIVJqoprzHL77lETwyXef3X+AFwuPoo4VC1HHRCzwfnOD4TOdBL7l2EoDI/wEkgnFi3jidUkCCbqQ/rfUBUkk6YJkknVBCsk6J5UUnZNGqs5JJ03nZJCuMzLJ0BlZZOqMbLJ0Rg7ZipBLjiKYyVWEPMyKkI9ZYQrIU5hC8hWmiAKFKaZQIUooUohSihXCQolCWClVEBsWBbFjVRAHNgVxYlcAFwPcOCjDKctxyU8Fbiopo4pyWU2FfNRQSS1V1FF9cD01+o+HBmpppE42Ua9/NOOhhQZaaZRtNOkv7TTTQQudtMou2vSHbtqtHrx0yF469Zs+uuinmwF65CBe/WKIXobpY4R+OcqAfjLGoDXOBENykmH9YIoRphllhjE5y7i+M8cE80yywJRcZFrfWGKGZWatFbnKnL6yxjzrLLDBotxkSV/YYpltVthhVe6yps/ssc4+G9aBPGRTnzhiiytsc5UdeY1dfeQ6e9xgn5scyFsc6pTbHOEhhzRySTfytqfIJ4MCMikkSxaRLUmKeUUJryklR5aRKwnKyaOCfCopMKq2x6mmkBqKqKVY1lEiMeoppYEyGimXTVRIlGYqaaGKVqoPbqNGIrTTQS2d1Mku6iVMNw300EgvTbKPZgnRTwsDtDJI28FDtEuQYUboYJROOUaXBBinmwl6mKRXTtEnfqbpZ4YBZhmUcwyJj3mGrQUWGZFLjIqXZcZYYZxVJuQak+JhnSk2mGaTGbnFrLjZZs7aYZd5uceCuNhnkQOWOGRZHrEiTo5Z5YQ1TlmXZ2yIg3M2uWDLupRXbIuda3a4YRcFe1LJvthQcYCaQzQcSS3HYkXHCXpOrVtp4EwsGDnHxAVmLqWFKzFj5RobN9hRSAdKMeFEhQs1bjSGZ7sRL1p86PCjlwFuxUAQAyGMhDHVRzALKqJYQAwrcWxGYrueJHZSOLjDKe9xiY4H3Dzi4QmvfMYnWl7w84YAbwke/I6QaHjPB8J8JCI/ERU1n4nxhThfSchvJEXFd1L84I6f3B/8iwdR8ps/PPKXJ/mPZ1HwnxeED7+JPx4Mxk2GTzFYGKuaClM3vY2HbpgL82ERrIT1sdiKNSdjBax7TOzz2JsAscdiDz1UfGpgWXzEPpaBREiAeECQBMkQgnkwB8ZhlCWToA1qoAoqwHW4fgYdS/0KmN4LFvIHXB0EknpDr1HULTKhYtcS8Nl2QRIw42E3AcrF8/7FPo2acBOgXQQopxB8FePiAxqTE+gPiTKv8mrbPJUP8Itmz9PYnCS6PyTOV+UiXoOB0OJk7GBI0JplrjVpvizXugmwPCw2X5VRwi852VpyKur/n5tAnKsDv4HJ7Q31hTTFx2nNPpkTBN6vHewNaQd9nCDLbgLxWo7gef/2xen6GgkF8c4oSOTwhIGQ1sxpIKvqwjNEQVNUlVNFmV2KwMH4hBSkNhcSiKdoTI6fUErv+kZFFLjqZ4uCKMicIPvcBJJcHQMhv48TBNmdXT4eBKnZN5yyAlBLoO2yLNyRvT5d0yxW/1eypKdYs5KSk60OK7eRRRsQi+Pwehw3jmn84IE97+CoYRig6LqO1CEEaFh5bd8pHD1z5F0qYh4+jdSTezUYZzETefKNCzi66+XHgcZMxNx/HKl6fTJiVlIR0zSRqus6KIZh4Oi7Tc7nCHkTqafPmxQVeffIBRw1YKWi6zpSTdOkIu+++y6OGoYxGDH3n0bqybM6KMa5Uzh65sC7k5jIE4dN9Ixen4woRGMm8saBMzi67+WHgZ6rmpdNKvLulTM4atjwI/tPm0jVdR0Uob+irpDoo7Ty+CEDP/1uUxoGzCBa0fYSpO5/5RGKGaUwFHwTopX7738eR1/lGi4i9fT+1ynmxT1prDM77mTh8P/bnT17pEz2fvrur9JLBxz1XmG8rl6YqPcNOEo3OsbYPmnwhNA+km/Luu729J7qmvSeJzZkWVPHVha81bNnryQky08PFWffIC+0l0nt1VmBP27OFDszU15mLXfiL1O8ObObm6Ss4jIpu8kjhutL7eHG9gmXp3mpa3OspWtAzbB+Nip2NeTnT20v6M8Jdq+Yvbbqz3Ix7AmGC+rqJ5yeoCNcVu4Ie4ITzvq6sNMTFMPhsoBtKHYbx902xT4U8NuHptzGcbfFbEPzf/ZND1uCLs/BYHp2jG2WfpUq8oYlKtN5saMOtd3YnufwpBTbe+sahMFs01roLXrCf+f+m5qRvWk8v8XPz6qoFic8gVn5dZ45MzOOuXyZ3p5f/NNXWFtdnoO+9OwY2yT9KlXmDZf/lOn8bGktar/ZdiZ/+AHpgc35mzst9gdaZqT/ctcP0Jg5bd7mvPI1AAAELEUEJhURwB/tAgDLrwToiwToIgKWqQTYiwTYol2QAJZfCeCpBJIuEvjQ6pLCtpMpSrc0QiFefyqFbSdTWHJiWpstPFMztcrvkW9TI8Jo+D3mJKLXT2l3UzrdRAmb8Ti6IySMCTqVcYqyQwnb+9OV6nYyLk66s+LsGEZ+pidGTKFOkGmadSahEqdFTTNyRmY2JVuuECGGvMwkdV4rbJSNirNslQzZrogM8ecotuKWQqNwRYUuepiZ9ZmWKa2XFDP9FN8zHycxhMWJVsdYMBZt6U97QfQ44xTHS0ZcGHezc+qIGuokpeq3vhHz6P4ydaduikAI1N9Jd6Y0vydGoNdTMWzDrkSMnpi3nKTYYkQ1S8zAGSwoGzsLaATh9GSBm7VN2tWGZ3iWmy2uxxUpgT2bixim63QXNzCREctws77xxy19xg9oqORRm+c1Y2dsVoIKl8JYZP29kybfU6dCXGTiBeWMvD9t0W5cX0JC0+OGixs3L0iYn0CoFxYNDOTHpWgixRynyKU04IpbUAYXz6t5oZmkJLqY6XJQaIx5VX5P9P40MYyGKcVxrx95uVZSy5QUU9M0XdO0d6lBtiWplt6u1HT1YasXleEaTMN27WLbaLsa9vEcSXPMbaZpmIMCT9Y8CxWmpWMf4cu6b7s207DCA2zbsS07OhayIRzHcR3bMcjORDLyXNdzHdeMzieymQS+H/ieb1F0KadYORGIUATCpqSVgmIXojCMQhGWjaT1kuKU4ihK4jB+s3tco6y45SSOkzgKomdrqlfLZjK5bJL1KXppRg1mCvl8MZ/LC4ruzGtivlwslkuFUkjRg6YWNavlSq1SqsQU/WFHizuNWq1Rq9QSil7u60l/utGYmapPZSl6y9DIDRfm5hbnZ+YL9Ow9G83ixnaz2Wkttsovn6+S2Jybaf9+IVj7v1lQ/lvX/Iflnh1FeOtWvl7R1ffKpwit/yNKiv8EmaF+u/L1yr/q+5fYee2PcbgK0nlQDvNSPstBeVjZvp6BfLt7Gwfl+qhJekH1xGsd3mK8ECu7RUb6hFsWvOuv2zkqepC+5MfZbomEz3fL+Hy2W2E9Z9eru3drZNm+Wydi9af6rAZu8pSnPGSZLl2ecOUDuoGHPA3o8ORz79LhAY+5QZcDbGcvR7nG/dWJR7jEfZ5wPPEfH9j5gPvUf4U00WfrIdtv8YR9FU+4Gdz6MQ94zjJ1Dnl1pjclH9CjT5/DXOPGx3vshCUPHLqFBzzklbb+DSvG1lngCoscLuzR4qZn8/Q5fZ1loW4tV3edrMO9qo3cWI37w72Crnusp2NHeJOfv916rYV7JOi6zlNenFpzjfpO9y78KxI6n3CNqz/XirgvU9tV9ZSbh3UcYRd7w6oDPMQCrhv3nqwtWobvF9FqEZnZmtRc4rk1XZe4zN2N7gumddANLbNqE4dm/tO8WfXSEiiF+WYr3zGgPSSFJt9/JVTKTemlyHPGxi+TP6LNNAWCa2FT85eZQzrMUESsZFZZpscspadprGPAPGVCmqyzgdUsUHldiSGzwSY+YInq00z2sp4e02Sow+ISB1hNixKeZnOVw2ykQ5me5nCTY2yhR4Ue5/KOGxxkyDRdjV+QRD+R7/FQMZopfOwBAAAA) format("woff2"); }
+header.top h1 { font-family: "NBTitle", "Tenor Sans", ui-rounded, system-ui, sans-serif; font-size: 26px; font-weight: 400; letter-spacing: .2px; margin: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 header.top button { background: var(--soft); border-color: transparent; color: var(--accent); width: 44px; height: 44px; }
 #btnSync[data-state=off] .arrows { opacity: .45; }
 #btnSync[data-state=busy] svg { animation: spin 1.1s linear infinite; }
@@ -38,7 +39,7 @@ header.top button { background: var(--soft); border-color: transparent; color: v
 @media (prefers-reduced-motion: reduce) { #btnSync[data-state=busy] svg { animation: none; } }
 header.top button:hover { border-color: var(--accent); }
 #status { font-size: 12px; color: var(--muted); white-space: nowrap; }
-@media (max-width: 560px) { #status { display: none; } header.top { gap: 8px; } header.top h1 { font-size: 18px; } }
+@media (max-width: 560px) { #status { display: none; } header.top { gap: 8px; } header.top h1 { font-size: 23px; } }
 
 button, input, select, textarea { font: inherit; color: inherit; }
 button {
@@ -146,12 +147,14 @@ dialog.dlg .dlg-head { display: flex; align-items: center; gap: 10px; margin: -6
 dialog.dlg .dlg-head h2 { flex: 1; margin: 0; font-size: 17px; text-align: center; overflow-wrap: anywhere; }
 dialog.dlg .dlg-sp { width: 40px; flex: none; }
 button.iconbtn.primary { color: var(--accent-ink); }
-.hintrow { display: flex; align-items: center; gap: 10px; margin: 2px 0 12px; }
-.hintrow .hint { flex: 1; margin: 0; }
 dialog.dlg .field { display: block; margin-bottom: 12px; }
 dialog.dlg .field > span { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
 dialog.dlg textarea { min-height: 180px; resize: vertical; }
 .dlg-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-start; margin-top: 18px; }
+.dlg-actions.stack { flex-direction: column; align-items: stretch; }
+.dlg-actions.stack button { text-align: left; padding: 11px 14px; }
+.tablewrap { position: relative; margin-top: 14px; }
+button.iconbtn.corner { position: absolute; top: -18px; right: -10px; z-index: 3; box-shadow: var(--shadow); }
 .dlg-actions .left { margin-right: auto; }
 .catrow { display: grid; grid-template-columns: 1fr 90px auto; gap: 8px; margin-bottom: 8px; align-items: center; }
 </style>
@@ -327,7 +330,7 @@ function dlg(title, content, actions) {
     if (asCheck) { ok = iconBtn('check', primary.label); ok.type = 'submit'; ok.classList.add('primary'); }
     const form = h('form', { onsubmit: e => { e.preventDefault(); if (primary) run(primary); } },
       h('div', { class: 'dlg-head' }, x, h('h2', {}, title), ok), content,
-      extras.length ? h('div', { class: 'dlg-actions' }, extras.map(a =>
+      extras.length ? h('div', { class: 'dlg-actions' + (actions.stack ? ' stack' : '') }, extras.map(a =>
         h('button', { type: a.primary ? 'submit' : 'button', class: a.cls || (a.primary ? 'primary' : ''), onclick: a.primary ? null : () => run(a) }, a.label))) : null);
     d.append(form);
     d.addEventListener('cancel', e => { e.preventDefault(); close(cancelVal); });
@@ -569,10 +572,13 @@ function iconBtn(name, label, onclick) {
 async function tabSettings(cls, tab) {
   const actions = [];
   if (tab.type === 'grades') actions.push({ label: 'Gewichtung', value: 'weights' });
+  actions.push({ label: 'Reiter umbenennen', value: 'rename' });
   actions.push({ label: 'Reiter löschen', cls: 'danger', value: 'del' });
-  const r = await dlg('Einstellungen: ' + tab.name, h('div', {}, tsToggle(),
-    h('p', { class: 'hint' }, 'Umbenennen: den Reiter oben lange gedrückt halten.')), actions);
+  actions.push({ label: 'Fertig', primary: true, value: null });
+  actions.stack = true;
+  const r = await dlg('Einstellungen: ' + tab.name, h('div', {}, tsToggle()), actions);
   if (r === 'weights') editCategories(tab);
+  if (r === 'rename') renameTab(tab);
   if (r === 'del') deleteTab(cls, tab);
 }
 
@@ -765,9 +771,7 @@ function renderGrades(panel, cls, tab) {
     iconBtn('gear', 'Einstellungen', () => tabSettings(cls, tab)),
     h('span', { class: 'grow' }),
     iconBtn('export', 'CSV-Export', () => exportCsv(cls, tab, view))));
-  panel.append(h('div', { class: 'hintrow' }, h('p', { class: 'hint' }, tab.categories.map(c => c.name + ' ' + c.weight + ' %').join(' · ') +
-    (view === 'J' ? ' · Jahr: je Bereich (1. Halbjahr × 1 + 2. Halbjahr × 2) ÷ 3' : '')),
-    view === 'J' ? null : iconBtn('plus', 'Neue Leistung', () => editColumn(tab, null, view))));
+  if (view === 'J') panel.append(h('p', { class: 'hint' }, 'Jahr: je Bereich (1. Halbjahr × 1 + 2. Halbjahr × 2) ÷ 3'));
   if (!cls.students.length) { panel.append(h('div', { class: 'empty' }, 'Zuerst im Reiter „Schüler“ Namen anlegen oder importieren.')); return; }
   if (view !== 'J' && !cols.length) panel.append(h('p', { class: 'hint' }, 'Im ' + view + '. Halbjahr gibt es noch keine Leistung. Mit dem „+“ rechts eine Spalte anlegen (z. B. Klassenarbeit 1). Noten als 1–6 eingeben, optional mit + oder − (z. B. 2+).'));
 
@@ -814,7 +818,9 @@ function renderGrades(panel, cls, tab) {
   const tfoot = h('tfoot', {}, h('tr', {}, h('td', { class: 'name' }, 'Klassenschnitt'),
     cols.map(col => footCells[col.id] = h('td', {})), defFoot));
   refreshFoot();
-  panel.append(h('div', { class: 'scroll' + (S.settings.showTs ? '' : ' hide-ts') }, h('table', {}, thead, tbody, tfoot)));
+  const plus = view === 'J' ? null : iconBtn('plus', 'Neue Leistung', () => editColumn(tab, null, view));
+  if (plus) plus.classList.add('corner');
+  panel.append(h('div', { class: 'tablewrap' }, h('div', { class: 'scroll' + (S.settings.showTs ? '' : ' hide-ts') }, h('table', {}, thead, tbody, tfoot)), plus));
 }
 
 async function editColumn(tab, col, view) {
