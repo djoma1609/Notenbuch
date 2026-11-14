@@ -228,6 +228,7 @@ body.drawer-open #drawerShade { opacity: 1; pointer-events: auto; }
 #drawer .fold-body { padding: 4px 4px 6px; }
 #drawer .fold-body[hidden] { display: none; }
 #drawer form.inline .dlg-actions { margin-top: 10px; }
+#drawer form.inline .dlg-actions button { font-size: 14px; padding: 6px 12px; }
 #drawer .fold-body { border-left: 3px solid var(--soft); margin: 0 0 10px 6px; padding: 4px 4px 6px 10px; }
 .switchrow small { display: block; color: var(--muted); font-size: 12.5px; }
 #drawer textarea { min-height: 120px; }
@@ -440,7 +441,7 @@ function dlg(title, content, actions) {
         resolve(v);
       };
       const run = async a => { const v = a.fn ? await a.fn() : a.value; if (v !== KEEP) close(v); };
-      const btns = actions.filter(a => !isCancel(a));
+      const btns = actions.filter(a => !isCancel(a) && !a.modalOnly);
       host.replaceChildren(h('form', { class: 'inline', onsubmit: e => { e.preventDefault(); if (primary) run(primary); } }, content,
         btns.length ? h('div', { class: 'dlg-actions' }, btns.map(a =>
           h('button', { type: a.primary ? 'submit' : 'button', class: a.cls ? a.cls.replace('left', '').trim() : (a.primary ? 'primary' : ''), onclick: a.primary ? null : () => run(a) }, a.label))) : null));
@@ -473,7 +474,7 @@ function askText(title, label, value, okLabel) {
   const inp = h('input', { type: 'text', value: value || '' });
   return dlg(title, field(label, inp), [
     { label: 'Abbrechen', value: null },
-    { label: okLabel || 'OK', primary: true, fn: () => inp.value.trim() || KEEP }
+    { label: okLabel || 'Speichern', primary: true, fn: () => inp.value.trim() || KEEP }
   ]);
 }
 function confirmDlg(title, text, okLabel) {
@@ -734,15 +735,25 @@ async function addClass() {
 async function renameClass(cls) {
   const inp = h('input', { type: 'text', value: cls.name });
   const r = await dlg('Klasse umbenennen', field('Name', inp), [
-    { label: 'Klasse löschen', cls: 'danger left', value: 'del' },
+    { label: 'Klasse löschen', cls: 'danger left', value: 'del', modalOnly: true },
     { label: 'Abbrechen', value: null },
     { label: 'Speichern', primary: true, fn: () => inp.value.trim() ? 'ok' : KEEP }
   ]);
   if (r === 'del') return deleteClass(cls);
   if (r === 'ok') { cls.name = inp.value.trim(); cls.m = nowIso(); save(); render(); }
 }
+/* Klasse löschen: zur Sicherheit muss der Name der Klasse eingetippt werden. */
 async function deleteClass(cls) {
-  if (!await confirmDlg('Klasse löschen', 'Klasse „' + cls.name + '“ mit allen Schülern, Noten und Listen endgültig löschen?')) return;
+  const inp = h('input', { type: 'text', autocomplete: 'off', autocapitalize: 'off', 'aria-label': 'Name der Klasse zur Bestätigung' });
+  const msg = h('p', { class: 'hint' });
+  const same = () => inp.value.trim().toLowerCase() === cls.name.trim().toLowerCase();
+  const ok = await dlg('Klasse löschen', h('div', {},
+    h('p', {}, 'Klasse „' + cls.name + '“ mit allen Schülern, Noten und Listen endgültig löschen?'),
+    field('Zum Löschen ' + cls.name + ' eintragen:', inp), msg), [
+    { label: 'Abbrechen', value: false },
+    { label: 'Löschen', cls: 'danger', fn: () => { if (same()) return true; msg.textContent = 'Der Name stimmt nicht. Bitte genau „' + cls.name + '“ eintragen.'; inp.focus(); return KEEP; } }
+  ]);
+  if (!ok) return;
   S.classes = S.classes.filter(c => c !== cls); markDeleted(cls.id); save(); render();
 }
 async function addTab() {
@@ -1704,7 +1715,7 @@ async function syncDialog() {
     actions.push({ label: 'Jetzt abgleichen', fn: async () => { await sync(true); describe(); return KEEP; } });
   }
   if (auth) actions.unshift({ label: 'Abmelden', cls: 'danger left', value: 'logout' });
-  actions.push({ label: 'Sicherung', value: 'backup' });
+  actions.push({ label: 'Sicherung', value: 'backup', modalOnly: true });
   actions.push({ label: 'Schließen', primary: !actions.some(a => a.primary), value: null });
   const r = await dlg('Automatischer Abgleich', body, actions);
   if (r === 'logout') { auth = null; saveAuth(); clearTimeout(syncTimer); setSync('off'); }
