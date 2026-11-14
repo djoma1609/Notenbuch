@@ -65,12 +65,12 @@ tbody tr.hl > td, tbody tr.hl:hover > td, tbody tr.hl > td.note { background: va
 .solo span { flex: 1; }
 /* Jahreszeiten-Hintergrund: Aquarell und gemalte Motive, nach unten auslaufend */
 #season { position: absolute; top: 0; left: 0; right: 0; height: 440px; overflow: hidden; pointer-events: none; z-index: 0; }
-#season .wash { position: absolute; inset: -60px -50px auto -50px; height: 380px; opacity: 0; filter: url(#watery); animation: wash 1.6s ease-out .1s forwards;
+#season .wash { position: absolute; inset: -60px -50px auto -50px; height: 380px; opacity: 0; filter: url(#watery); animation: wash .8s ease-out .05s forwards; will-change: opacity;
   -webkit-mask-image: linear-gradient(to bottom, #000 20%, transparent 100%); mask-image: linear-gradient(to bottom, #000 20%, transparent 100%); }
-#season svg { position: absolute; inset: 0; width: 100%; height: 100%; filter: url(#kid); }
-#season .dd { opacity: 0; transform-box: fill-box; transform-origin: center; animation: ddpop .6s ease-out forwards; }
-@keyframes wash { from { opacity: 0; clip-path: inset(0 100% 0 0); } to { opacity: .72; clip-path: inset(0 0 0 0); } }
-@keyframes ddpop { from { opacity: 0; transform: scale(.3); } to { opacity: var(--o, .4); transform: scale(1); } }
+#season svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+#season .dd { opacity: 0; animation: ddpop .4s ease-out forwards; }
+@keyframes wash { from { opacity: 0; } to { opacity: .72; } }
+@keyframes ddpop { from { opacity: 0; } to { opacity: var(--o, .4); } }
 @keyframes pop { from { opacity: 0; transform: scale(.2); } to { opacity: 1; transform: scale(1); } }
 #greet .dot { transform-box: fill-box; transform-origin: center; opacity: 0; animation: pop .25s ease-out forwards; }
 header.top, .tabs, main { position: relative; z-index: 1; }
@@ -201,6 +201,23 @@ dialog.dlg textarea { min-height: 180px; resize: vertical; }
 .dlg-actions.stack { flex-direction: column; align-items: stretch; }
 .dlg-actions.stack button { text-align: left; padding: 11px 14px; }
 .tablewrap { position: relative; margin-top: 14px; }
+/* Einstellungs-Leiste am rechten Rand */
+#drawerTab { position: fixed; right: 0; top: 46%; width: 26px; height: 64px; padding: 0; border: none; border-radius: 10px 0 0 10px; background: var(--accent); color: #fff; z-index: 41;
+  display: flex; align-items: center; justify-content: center; box-shadow: -2px 2px 8px rgba(0, 0, 0, .2); transition: right .25s ease; }
+#drawerTab:active { transform: none; }
+#drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(360px, 86vw); background: var(--panel); z-index: 40; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding: calc(18px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom)); box-shadow: -8px 0 30px rgba(0, 0, 0, .18);
+  transform: translateX(105%); visibility: hidden; transition: transform .25s ease, visibility 0s .25s; }
+#drawerShade { position: fixed; inset: 0; background: rgba(30, 25, 15, .25); z-index: 39; opacity: 0; pointer-events: none; transition: opacity .25s; }
+body.drawer-open #drawer { transform: none; visibility: visible; transition: transform .25s ease; }
+body.drawer-open #drawerTab { right: min(360px, 86vw); }
+body.drawer-open #drawerShade { opacity: 1; pointer-events: auto; }
+#drawer h2 { font-size: 19px; margin: 0 0 14px; }
+#drawer h3.sec { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin: 18px 0 8px; }
+#drawer h2 + h3.sec { margin-top: 0; }
+#drawer .field { display: block; margin-bottom: 12px; }
+#drawer .field > span { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+#drawer button.row { display: block; width: 100%; text-align: left; padding: 11px 14px; margin-bottom: 8px; white-space: normal; }
 .panel > .tablewrap:first-child { margin-top: 26px; }
 button.iconbtn.corner { position: absolute; top: -18px; right: -10px; z-index: 3; box-shadow: var(--shadow); }
 .dlg-actions .left { margin-right: auto; }
@@ -229,6 +246,9 @@ button.iconbtn.corner { position: absolute; top: -18px; right: -10px; z-index: 3
 </header>
 <nav class="tabs" id="classTabs"></nav>
 <main id="main"></main>
+<button id="drawerTab" type="button" aria-label="Einstellungen öffnen" aria-expanded="false"></button>
+<div id="drawerShade"></div>
+<aside id="drawer" aria-label="Einstellungen"></aside>
 
 <script>
 'use strict';
@@ -776,7 +796,7 @@ async function tabSettings(cls, tab) {
   if (r === 'del') deleteTab(cls, tab);
 }
 /* Berechnung: Wert der Tendenzen und Gewichte der Halbjahre (gilt für alle Fächer). */
-async function calcSettings() {
+function calcFields() {
   const tend = h('select', { value: String(S.settings.tendency) },
     h('option', { value: '0.25' }, '0,25 (2+ = 1,75 · 2− = 2,25)'),
     h('option', { value: '0.33' }, '0,33 (2+ = 1,67 · 2− = 2,33)'),
@@ -790,19 +810,64 @@ async function calcSettings() {
     const c = halfW(), f = n => String(n).replace('.', ',');
     formula.textContent = 'Jahr je Bereich = (1. Halbjahr × ' + f(c[1]) + ' + 2. Halbjahr × ' + f(c[2]) + ') ÷ ' + f(c[1] + c[2]);
   };
-  const saveW = () => {
+  const commit = () => {
     const a = +w1.value, b = +w2.value;
     if (!(a >= 0 && b >= 0 && a + b > 0)) { formula.textContent = 'Bitte zwei Zahlen ab 0 eingeben, mindestens eine größer als 0.'; return; }
+    const c = halfW();
+    if (c[1] === a && c[2] === b) return;
     S.settings.halfWeights = [a, b]; S.settings.m = nowIso(); save(); render(); showFormula();
   };
-  w1.addEventListener('change', saveW); w2.addEventListener('change', saveW);
+  w1.addEventListener('change', commit); w2.addEventListener('change', commit);
   showFormula();
-  await dlg('Berechnung der Jahresnote', h('div', {},
+  const el = h('div', {},
     field('Wert von + und − bei der Berechnung', tend),
-    h('div', { class: 'field' }, h('span', {}, 'Gewicht der Halbjahre'),
+    h('div', { class: 'field' }, h('span', {}, 'Berechnung der Jahresnote: Gewicht der Halbjahre'),
       h('div', { class: 'yearw' }, h('label', {}, '1. Halbjahr ×', w1), h('label', {}, '2. Halbjahr ×', w2)),
-      formula)), [{ label: 'Fertig', primary: true, fn: () => { saveW(); return 'ok'; } }]);
+      formula));
+  return { el, commit };
 }
+async function calcSettings() {
+  const c = calcFields();
+  await dlg('Berechnung der Jahresnote', c.el, [{ label: 'Fertig', primary: true, fn: () => { c.commit(); return 'ok'; } }]);
+}
+
+/* ---------- Einstellungs-Leiste am rechten Rand ----------
+   Die Lasche am Rand (‹) schiebt alle Einstellungen von rechts herein, (›) schließt sie wieder. */
+ICONS.left = '<polyline points="15 18 9 12 15 6"/>';
+ICONS.right = '<polyline points="9 18 15 12 9 6"/>';
+let drawerOpen = false;
+function renderDrawer() {
+  const cls = curClass(), tab = cls && cls.tabs.find(t => t.id === S.ui.tabId);
+  const act = (label, fn, danger) => h('button', { class: 'row' + (danger ? ' danger' : ''), onclick: () => { toggleDrawer(false); fn(); } }, label);
+  const sec = t => h('h3', { class: 'sec' }, t);
+  document.getElementById('drawer').replaceChildren(
+    h('h2', {}, 'Einstellungen'),
+    sec('Grundlegende Einstellungen für alle Fächer'), tsToggle(), calcFields().el,
+    tab ? sec(tab.name) : null,
+    tab && tab.type === 'grades' ? act('Gewichtung der Bereiche', () => editCategories(tab)) : null,
+    tab ? act(tab.name + ' umbenennen', () => renameTab(tab)) : null,
+    tab ? act(tab.name + ' löschen', () => deleteTab(cls, tab), true) : null,
+    cls ? sec('Klasse ' + cls.name) : null,
+    cls ? act(cls.name + ' umbenennen', () => renameClass(cls)) : null,
+    cls ? act(cls.name + ' löschen', () => deleteClass(cls), true) : null,
+    sec('Allgemein'),
+    act('Name in der Begrüßung', editName),
+    act('Sicherung', backupDialog),
+    act('Automatischer Abgleich', syncDialog));
+}
+function toggleDrawer(open) {
+  drawerOpen = open == null ? !drawerOpen : open;
+  const tabBtn = document.getElementById('drawerTab');
+  if (drawerOpen) renderDrawer();
+  document.body.classList.toggle('drawer-open', drawerOpen);
+  tabBtn.innerHTML = svgIcon(ICONS[drawerOpen ? 'right' : 'left'], 22);
+  tabBtn.setAttribute('aria-expanded', String(drawerOpen));
+  tabBtn.setAttribute('aria-label', drawerOpen ? 'Einstellungen schließen' : 'Einstellungen öffnen');
+  tabBtn.title = tabBtn.getAttribute('aria-label');
+}
+document.getElementById('drawerTab').addEventListener('click', () => toggleDrawer());
+document.getElementById('drawerShade').addEventListener('click', () => toggleDrawer(false));
+toggleDrawer(false);
 
 /* ---------- Notizen je Schüler ----------
    st.notes = [{ id, text, t (angelegt), m (geändert) }] – jede Notiz mit Zeitstempel,
@@ -1639,7 +1704,7 @@ async function greet() {
   svg.setAttribute('viewBox', '0 0 ' + w + ' ' + hgt);
   svg.setAttribute('width', w); svg.setAttribute('height', hgt);
   mask.setAttribute('x', 0); mask.setAttribute('y', 0); mask.setAttribute('width', w); mask.setAttribute('height', hgt);
-  let at = 0.4;
+  let at = 1.1;   // erst schreiben, wenn der Hintergrund steht (läuft auf dem iPhone flüssiger)
   chars.forEach((ch, i) => {
     if (ch === ' ') { at += 0.18; return; }
     let len = 220;
@@ -1718,7 +1783,7 @@ function paintSeason() {
     const x = r() * W, y = 10 + Math.pow(r(), 1.5) * 310, size = 15 + r() * 18;
     const o = Math.max(0.1, 0.55 * (1 - y / 340));
     s += '<g transform="translate(' + x.toFixed(0) + ' ' + y.toFixed(0) + ') rotate(' + (r() * 360).toFixed(0) + ') scale(' + (size / 20).toFixed(2) + ')">' +
-      '<g class="dd" style="--o:' + o.toFixed(2) + ';animation-delay:' + (0.7 + r() * 1.8).toFixed(2) + 's">' + doodle(SEASON.kind, SEASON.cols[i % SEASON.cols.length]) + '</g></g>';
+      '<g class="dd" style="--o:' + o.toFixed(2) + ';animation-delay:' + (0.15 + r() * 0.7).toFixed(2) + 's">' + doodle(SEASON.kind, SEASON.cols[i % SEASON.cols.length]) + '</g></g>';
   }
   const holder = h('div', {});
   holder.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMin slice">' + s + '</svg>';
