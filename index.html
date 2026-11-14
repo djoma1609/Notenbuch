@@ -67,6 +67,19 @@ td.name, td.avg { -webkit-user-select: none; user-select: none; -webkit-touch-ca
 tbody tr.hl > td, tbody tr.hl:hover > td, tbody tr.hl > td.note { background: var(--p2); }
 .solo { display: flex; align-items: center; gap: 10px; background: var(--p2); border-radius: 12px; padding: 8px 12px; margin: 0 0 12px; font-weight: 600; }
 .solo span { flex: 1; }
+/* Sortieren und Suchen über der Tabelle */
+.nametools { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; }
+.nametools .searchbox { flex: 1; min-width: 0; position: relative; display: flex; align-items: center; }
+.nametools .lens { position: absolute; left: 10px; display: inline-flex; color: var(--muted); pointer-events: none; }
+.nametools input { width: 100%; background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 8px 12px 8px 34px; -webkit-appearance: none; appearance: none; }
+button.iconbtn.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+th.name.hold { cursor: pointer; }
+tbody tr[hidden] { display: none; }
+th small.cts { font-size: 10px; opacity: .85; }
+/* Noten verdeckt */
+.masked td.cell input.grade { color: transparent !important; background: var(--head) !important; border-color: var(--line) !important; pointer-events: none; caret-color: transparent; }
+.masked td.cell .ts { visibility: hidden; }
+.masked td.avg, .masked tfoot td:not(.name) { color: transparent; }
 /* Jahreszeiten-Hintergrund: Aquarell und gemalte Motive, nach unten auslaufend */
 #season { position: absolute; top: 0; left: 0; right: 0; height: 440px; overflow: hidden; pointer-events: none; z-index: 0; }
 #season .wash { position: absolute; inset: -60px -50px auto -50px; height: 380px; opacity: 0; filter: url(#watery); animation: wash .8s ease-out .05s forwards; will-change: opacity;
@@ -328,6 +341,7 @@ function mergeList(a, b, deleted, mergeItem) {
 function mergeTab(a, b, deleted) {
   const top = newer(a, b);
   const t = { id: a.id, type: a.type, name: top.name, m: top.m, columns: mergeList(a.columns, b.columns, deleted, newer), cells: {} };
+  if (a.created || b.created) t.created = a.created || b.created;
   if (a.type === 'grades') {
     const src = (b.catM || '') > (a.catM || '') ? b : a;
     t.categories = src.categories; t.catM = src.catM;
@@ -366,6 +380,8 @@ function mergeState(a, b) {
       tabs: yTabs ? mergeList(y.tabs, x.tabs, deleted, (q, p) => mergeTab(p, q, deleted)) : mergeList(x.tabs, y.tabs, deleted, (p, q) => mergeTab(p, q, deleted)) };
     const tm = yTabs ? y.tabOrderM : x.tabOrderM;
     if (tm) c.tabOrderM = tm;
+    const cr = x.created || y.created;
+    if (cr) c.created = cr;
     return c;
   };
   // Reihenfolge der Klassen: ebenfalls die zuletzt sortierte Seite.
@@ -634,8 +650,51 @@ function rowPress(tr, st) {
 /* Liefert die anzuzeigenden Schüler: alle oder nur den einzeln gewählten. */
 function shownStudents(cls) {
   const st = rowView.solo && cls.students.find(s => s.id === rowView.solo);
-  if (!st) { rowView.solo = null; return cls.students; }
-  return [st];
+  if (rowView.solo && !st) rowView.solo = null;
+  if (st) return [st];
+  // Sortierung gilt nur für die Ansicht; die Reihenfolge der Schülerliste bleibt unverändert.
+  if (!rowView.sort) return cls.students;
+  const list = [...cls.students].sort((a, b) => a.name.localeCompare(b.name, 'de'));
+  return rowView.sort === 'za' ? list.reverse() : list;
+}
+/* Kopfzelle „Name“: lange drücken öffnet Sortieren (A–Z, Z–A) und die Namenssuche. */
+const SEARCH_ICON = '<circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/>';
+const sortIcon = (top, bottom) => svgIcon('<text x="2" y="10.5" font-size="10" font-weight="700" fill="currentColor" stroke="none">' + top +
+  '</text><text x="2" y="22" font-size="10" font-weight="700" fill="currentColor" stroke="none">' + bottom + '</text><line x1="17" y1="4" x2="17" y2="20"/><polyline points="13 16 17 20 21 16"/>', 22);
+function nameHead() {
+  const th = h('th', { class: 'name', title: 'Lange drücken: sortieren und suchen' }, 'Name',
+    rowView.sort ? h('small', {}, rowView.sort === 'az' ? 'A bis Z' : 'Z bis A') : null);
+  return longPress(th, () => {}, () => { rowView.tools = !rowView.tools; if (!rowView.tools) rowView.q = ''; render(); });
+}
+function nameTools(tbody) {
+  const filter = () => {
+    const q = (rowView.q || '').trim().toLowerCase();
+    [...tbody.rows].forEach(tr => { tr.hidden = !!q && !tr.querySelector('td.name').textContent.toLowerCase().includes(q); });
+  };
+  filter();
+  if (!rowView.tools) return null;
+  const sbtn = (v, label, top, bottom) => {
+    const b = iconBtn('close', label, () => { rowView.sort = rowView.sort === v ? null : v; render(); });
+    b.innerHTML = sortIcon(top, bottom);
+    if (rowView.sort === v) b.classList.add('on');
+    b.setAttribute('aria-pressed', String(rowView.sort === v));
+    return b;
+  };
+  const inp = h('input', { type: 'search', placeholder: 'Name suchen', value: rowView.q || '', 'aria-label': 'Name suchen', autocomplete: 'off' });
+  inp.addEventListener('input', () => { rowView.q = inp.value; filter(); });
+  const lens = h('span', { class: 'lens' }); lens.innerHTML = svgIcon(SEARCH_ICON, 18);
+  return h('div', { class: 'nametools' },
+    sbtn('az', 'Von A bis Z sortieren', 'A', 'Z'), sbtn('za', 'Von Z bis A sortieren', 'Z', 'A'),
+    h('span', { class: 'searchbox' }, lens, inp),
+    iconBtn('close', 'Sortieren und Suchen schließen', () => { rowView.tools = false; rowView.q = ''; render(); }));
+}
+/* Kleine Zeile „angelegt …“ unter einer Spaltenüberschrift (nur wenn Zeitstempel angezeigt werden). */
+const createdNote = col => col.created && S.settings.showTs ? h('small', { class: 'cts' }, 'angelegt ' + fmtTs(col.created)) : null;
+/* Noten verdecken (lange auf 1. Halbjahr / 2. Halbjahr / Jahr drücken). */
+function maskBanner() {
+  if (!rowView.mask) return null;
+  return h('div', { class: 'solo' }, h('span', {}, 'Noten sind verdeckt'),
+    h('button', { class: 'small', onclick: () => { rowView.mask = false; render(); } }, 'Noten anzeigen'));
 }
 function soloBanner(cls) {
   if (!rowView.solo) return null;
@@ -728,7 +787,7 @@ function loadDemo() {
 async function addClass() {
   const name = await askText('Neue Klasse', 'Name der Klasse (z. B. 7b)', '', 'Anlegen');
   if (!name) return;
-  const c = { id: uid(), name, m: nowIso(), students: [], tabs: [] };
+  const c = { id: uid(), name, m: nowIso(), created: nowIso(), students: [], tabs: [] };
   S.classes.push(c); S.ui.classId = c.id; S.ui.tabId = 'students';
   save(); render();
 }
@@ -767,7 +826,7 @@ async function addTab() {
     { label: 'Anlegen', primary: true, fn: () => name.value.trim() ? true : KEEP }
   ]);
   if (!ok) return;
-  const t = { id: uid(), type: type.value, name: name.value.trim(), m: nowIso(), columns: [], cells: {} };
+  const t = { id: uid(), type: type.value, name: name.value.trim(), m: nowIso(), created: nowIso(), columns: [], cells: {} };
   if (t.type === 'grades') {
     t.categories = [{ id: uid(), name: 'Allgemeine Leistungen', weight: 50 }, { id: uid(), name: 'Klassenarbeiten', weight: 50 }];
   }
@@ -926,10 +985,12 @@ function renderDrawer() {
     ...fold('Tendenz der Note', calc.tendEl),
     ...fold('Berechnung der Jahresnote', calc.weightEl),
     tab ? sec(tab.name) : null,
+    tab && tab.created && S.settings.showTs ? h('p', { class: 'hint' }, 'Angelegt: ' + fmtTs(tab.created, true)) : null,
     ...(tab && tab.type === 'grades' ? act('Gewichtung der Bereiche', () => editCategories(tab)) : []),
     ...(tab ? act(tab.name + ' umbenennen', () => renameTab(tab)) : []),
     ...(tab ? act(tab.name + ' löschen', () => deleteTab(cls, tab), true) : []),
     cls ? sec('Klasse ' + cls.name) : null,
+    cls && cls.created && S.settings.showTs ? h('p', { class: 'hint' }, 'Angelegt: ' + fmtTs(cls.created, true)) : null,
     ...(cls ? act(cls.name + ' umbenennen', () => renameClass(cls)) : []),
     ...(cls ? act(cls.name + ' löschen', () => deleteClass(cls), true) : []),
     sec('Allgemein'),
@@ -1135,8 +1196,8 @@ function renderGrades(panel, cls, tab) {
   panel.append(h('div', { class: 'bar' },
     h('span', { class: 'seg', role: 'group', 'aria-label': 'Zeitraum' },
       [[1, '1. Halbjahr', '1. Hj'], [2, '2. Halbjahr', '2. Hj'], ['J', 'Jahr', 'Jahr']].map(([v, label, short]) =>
-        h('button', { class: v === view ? 'active' : '', 'aria-pressed': String(v === view), 'aria-label': label, onclick: () => setView(v) },
-          h('span', { class: 'wide' }, label), h('span', { class: 'narrow' }, short)))),
+        longPress(h('button', { class: v === view ? 'active' : '', 'aria-pressed': String(v === view), 'aria-label': label, title: 'Lange drücken: Noten verdecken oder anzeigen' },
+          h('span', { class: 'wide' }, label), h('span', { class: 'narrow' }, short)), () => setView(v), () => { rowView.mask = !rowView.mask; render(); }))),
     h('span', { class: 'grow' }),
     iconBtn('export', 'CSV-Export', () => exportCsv(cls, tab, view))));
   if (!cls.students.length) { panel.append(h('div', { class: 'empty' }, 'Zuerst im Reiter „Schüler“ Namen anlegen oder importieren.')); return; }
@@ -1149,9 +1210,9 @@ function renderGrades(panel, cls, tab) {
     defs.forEach((d, i) => { defFoot[i].textContent = fmtOpt(meanOf(cls.students.map(s => d.get(s.id)))); });
   };
   const thead = h('thead', {}, h('tr', {},
-    h('th', { class: 'name' }, 'Name'),
+    nameHead(),
     cols.map(col => h('th', {}, h('button', { class: 'colbtn', title: 'Leistung bearbeiten', onclick: () => editColumn(tab, col, view) },
-      col.name, h('small', {}, catName(col.catId) + (col.factor !== 1 ? ' · ×' + String(col.factor).replace('.', ',') : ''))))),
+      col.name, h('small', {}, catName(col.catId) + (col.factor !== 1 ? ' · ×' + String(col.factor).replace('.', ',') : '')), createdNote(col)))),
     defs.map(d => h('th', { class: d.final ? 'final' : 'calc' }, d.label, d.sub ? h('small', {}, d.sub) : null))));
   const shown = shownStudents(cls);
   const tbody = h('tbody', {}, shown.map(st => {
@@ -1190,7 +1251,9 @@ function renderGrades(panel, cls, tab) {
   if (plus) plus.classList.add('corner');
   [...tbody.rows].forEach((tr, i) => rowPress(tr, shown[i]));
   { const banner = soloBanner(cls); if (banner) panel.append(banner); }
-  panel.append(h('div', { class: 'tablewrap' }, h('div', { class: 'scroll' + (S.settings.showTs ? '' : ' hide-ts') }, h('table', {}, thead, tbody, rowView.solo ? null : tfoot)), plus));
+  { const tools = nameTools(tbody); if (tools) panel.append(tools); }
+  { const mb = maskBanner(); if (mb) panel.append(mb); }
+  panel.append(h('div', { class: 'tablewrap' + (rowView.mask ? ' masked' : '') }, h('div', { class: 'scroll' + (S.settings.showTs ? '' : ' hide-ts') }, h('table', {}, thead, tbody, rowView.solo ? null : tfoot)), plus));
 }
 
 async function editColumn(tab, col, view) {
@@ -1281,9 +1344,9 @@ function renderList(panel, cls, tab) {
       foot[col.id].textContent = col.type === 'check' ? n + ' / ' + cls.students.length : '';
     }
   };
-  const thead = h('thead', {}, h('tr', {}, h('th', { class: 'name' }, 'Name'),
+  const thead = h('thead', {}, h('tr', {}, nameHead(),
     tab.columns.map(col => h('th', {}, h('button', { class: 'colbtn', title: 'Spalte bearbeiten', onclick: () => editListColumn(tab, col) },
-      col.name, h('small', {}, col.type === 'check' ? 'Abhaken' : 'Notiz'))))));
+      col.name, h('small', {}, col.type === 'check' ? 'Abhaken' : 'Notiz'), createdNote(col))))));
   const shown = shownStudents(cls);
   const tbody = h('tbody', {}, shown.map(st => h('tr', {}, h('td', { class: 'name' }, nameBtn(st)),
     tab.columns.map(col => {
@@ -1318,6 +1381,7 @@ function renderList(panel, cls, tab) {
   plus.classList.add('corner');
   [...tbody.rows].forEach((tr, i) => rowPress(tr, shown[i]));
   { const banner = soloBanner(cls); if (banner) panel.append(banner); }
+  { const tools = nameTools(tbody); if (tools) panel.append(tools); }
   panel.append(h('div', { class: 'tablewrap' }, h('div', { class: 'scroll' + (S.settings.showTs ? '' : ' hide-ts') }, h('table', {}, thead, tbody, rowView.solo ? null : tfoot)), plus));
 }
 async function editListColumn(tab, col) {
