@@ -133,6 +133,11 @@ ul.students li:hover { background: var(--head); }
 ul.students li:last-child { border-bottom: none; }
 ul.students li .nr { color: var(--accent); background: var(--soft); min-width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
 ul.students li .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+button.plus { width: 42px; height: 42px; padding: 0; border-radius: 50%; font-size: 24px; line-height: 1; }
+button.icon { min-width: 34px; padding-left: 0; padding-right: 0; }
+button:disabled { opacity: .35; cursor: default; }
+.narrow { display: none; }
+@media (max-width: 560px) { .wide { display: none; } .narrow { display: inline; } ul.students li button.small { min-width: 34px; padding-left: 8px; padding-right: 8px; } ul.students li { gap: 6px; padding: 8px; } }
 
 dialog.dlg { border: none; border-radius: 20px; background: var(--panel); color: var(--ink); padding: 22px; width: min(520px, calc(100vw - 32px)); box-shadow: 0 20px 60px rgba(0, 0, 0, .3); }
 dialog.dlg::backdrop { background: rgba(30, 25, 15, .45); }
@@ -565,37 +570,53 @@ async function studentNotes(st) {
 }
 
 /* ---------- Schüler ---------- */
+async function addStudents(cls) {
+  const inp = h('input', { type: 'text', placeholder: 'Nachname, Vorname', autocomplete: 'off', autocapitalize: 'words' });
+  const info = h('p', { class: 'hint' }, 'Namen einzeln eintragen oder eine ganze Liste importieren.');
+  const r = await dlg('Schüler hinzufügen', h('div', {}, field('Name', inp), info), [
+    { label: 'Namensliste importieren', cls: 'left', value: 'import' },
+    { label: 'Fertig', value: null },
+    { label: 'Hinzufügen', primary: true, fn: () => {
+      const n = inp.value.trim();
+      if (n) { cls.students.push({ id: uid(), name: n, m: nowIso() }); save(); info.textContent = '„' + n + '“ hinzugefügt. Nächster Name?'; inp.value = ''; }
+      inp.focus(); return KEEP;
+    } }
+  ]);
+  if (r === 'import') return importStudents(cls);
+  render();
+}
 function renderStudents(panel, cls) {
-  const inp = h('input', { type: 'text', placeholder: 'Name hinzufügen (Nachname, Vorname)', style: 'max-width:320px' });
-  const add = () => {
-    const n = inp.value.trim(); if (!n) return;
-    cls.students.push({ id: uid(), name: n, m: nowIso() }); save(); render();
-    const again = document.querySelector('.panel input[type=text]'); if (again) again.focus();
+  const move = (i, d) => {
+    const j = i + d; if (j < 0 || j >= cls.students.length) return;
+    [cls.students[i], cls.students[j]] = [cls.students[j], cls.students[i]];
+    cls.orderM = nowIso(); save(); render();
   };
-  inp.addEventListener('keydown', e => { if (e.key === 'Enter') add(); });
   panel.append(
     h('div', { class: 'bar' },
-      inp, h('button', { onclick: add }, 'Hinzufügen'),
-      h('button', { class: 'primary', onclick: () => importStudents(cls) }, 'Namensliste importieren'),
-      h('button', { onclick: () => { cls.students.sort((a, b) => a.name.localeCompare(b.name, 'de')); cls.orderM = nowIso(); save(); render(); } }, 'A–Z sortieren'),
+      h('button', { class: 'primary plus', title: 'Schüler hinzufügen', 'aria-label': 'Schüler hinzufügen', onclick: () => addStudents(cls) }, '+'),
+      h('button', { onclick: () => importStudents(cls) }, 'Namensliste importieren'),
       h('span', { class: 'grow' }),
       h('button', { class: 'small', onclick: () => renameClass(cls) }, 'Klasse umbenennen'),
       h('button', { class: 'small danger', onclick: () => deleteClass(cls) }, 'Klasse löschen')));
   if (!cls.students.length) {
-    panel.append(h('div', { class: 'empty' }, 'Noch keine Schüler. Namen einzeln hinzufügen oder eine Liste importieren (CSV, Excel oder einfügen).'));
+    panel.append(h('div', { class: 'empty' }, 'Noch keine Schüler. Über „+“ Namen einzeln hinzufügen oder eine Liste importieren (CSV, Excel oder einfügen).'));
     return;
   }
+  const last = cls.students.length - 1;
   panel.append(h('ul', { class: 'students' }, cls.students.map((st, i) => h('li', {},
     h('span', { class: 'nr' }, (i + 1) + '.'),
     h('span', { class: 'nm' }, nameBtn(st)),
-    h('button', { class: 'small', onclick: async () => { const n = await askText('Schüler umbenennen', 'Name', st.name); if (n) { st.name = n; st.m = nowIso(); save(); render(); } } }, 'Umbenennen'),
-    h('button', { class: 'small danger', onclick: async () => {
+    h('button', { class: 'small icon', disabled: i === 0, title: 'Nach oben', 'aria-label': st.name + ' nach oben', onclick: () => move(i, -1) }, '↑'),
+    h('button', { class: 'small icon', disabled: i === last, title: 'Nach unten', 'aria-label': st.name + ' nach unten', onclick: () => move(i, 1) }, '↓'),
+    h('button', { class: 'small', title: 'Umbenennen', 'aria-label': st.name + ' umbenennen', onclick: async () => { const n = await askText('Schüler umbenennen', 'Name', st.name); if (n) { st.name = n; st.m = nowIso(); save(); render(); } } },
+      h('span', { class: 'wide' }, 'Umbenennen'), h('span', { class: 'narrow' }, '✎')),
+    h('button', { class: 'small danger', title: 'Löschen', 'aria-label': st.name + ' löschen', onclick: async () => {
       if (!await confirmDlg('Schüler löschen', '„' + st.name + '“ samt allen Noten und Einträgen in dieser Klasse löschen?')) return;
       cls.students = cls.students.filter(x => x !== st);
       markDeleted(st.id);
       cls.tabs.forEach(t => { delete t.cells[st.id]; });
       save(); render();
-    } }, 'Löschen')))));
+    } }, h('span', { class: 'wide' }, 'Löschen'), h('span', { class: 'narrow' }, '✕'))))));
 }
 
 /* ---------- Import ---------- */
