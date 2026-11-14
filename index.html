@@ -878,17 +878,18 @@ function renderStudents(panel, cls) {
     [cls.students[i], cls.students[j]] = [cls.students[j], cls.students[i]];
     cls.orderM = nowIso(); save(); render();
   };
+  const plus = iconBtn('plus', 'Schüler hinzufügen', () => addStudents(cls));
+  plus.classList.add('corner');
   panel.append(
     h('div', { class: 'bar' },
-      iconBtn('plus', 'Schüler hinzufügen', () => addStudents(cls)),
       h('span', { class: 'grow' }),
       h('button', { class: 'small danger', onclick: () => deleteClass(cls) }, 'Klasse löschen')));
   if (!cls.students.length) {
-    panel.append(h('div', { class: 'empty' }, 'Noch keine Schüler. Über „+“ Namen einzeln hinzufügen oder eine Liste importieren (CSV, Excel oder einfügen).'));
+    panel.append(h('div', { class: 'tablewrap' }, h('div', { class: 'empty' }, 'Noch keine Schüler. Über das „+“ rechts Namen einzeln hinzufügen oder eine Liste importieren (CSV, Excel oder einfügen).'), plus));
     return;
   }
   const last = cls.students.length - 1;
-  panel.append(h('ul', { class: 'students' }, cls.students.map((st, i) => h('li', {},
+  panel.append(h('div', { class: 'tablewrap' }, h('ul', { class: 'students' }, cls.students.map((st, i) => h('li', {},
     h('span', { class: 'nr' }, (i + 1) + '.'),
     h('span', { class: 'nm' }, nameBtn(st)),
     h('button', { class: 'small icon', disabled: i === 0, title: 'Nach oben', 'aria-label': st.name + ' nach oben', onclick: () => move(i, -1) }, '↑'),
@@ -901,7 +902,7 @@ function renderStudents(panel, cls) {
       markDeleted(st.id);
       cls.tabs.forEach(t => { delete t.cells[st.id]; });
       save(); render();
-    } }, h('span', { class: 'wide' }, 'Löschen'), h('span', { class: 'narrow' }, '✕'))))));
+    } }, h('span', { class: 'wide' }, 'Löschen'), h('span', { class: 'narrow' }, '✕'))))), plus));
 }
 
 /* ---------- Import ---------- */
