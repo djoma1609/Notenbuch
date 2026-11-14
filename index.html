@@ -131,6 +131,10 @@ ul.students li:hover { background: var(--head); }
 ul.students li:last-child { border-bottom: none; }
 ul.students li .nr { color: var(--accent); background: var(--soft); min-width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
 ul.students li .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+button.iconbtn { width: 40px; height: 40px; padding: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: var(--accent); flex: none; }
+button.hold { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
+.checkrow { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+.checkrow input { width: 20px; height: 20px; accent-color: var(--accent); }
 button.plus { width: 42px; height: 42px; padding: 0; border-radius: 50%; font-size: 24px; line-height: 1; }
 button.icon { min-width: 34px; padding-left: 0; padding-right: 0; }
 button:disabled { opacity: .35; cursor: default; }
@@ -405,7 +409,8 @@ function render() {
   const cls = curClass();
   const ct = document.getElementById('classTabs');
   ct.replaceChildren(
-    ...S.classes.map(c => h('button', { class: c.id === S.ui.classId ? 'active' : '', onclick: () => { S.ui.classId = c.id; S.ui.tabId = 'students'; save(); render(); } }, c.name)),
+    ...S.classes.map(c => longPress(h('button', { class: c.id === S.ui.classId ? 'active' : '', title: 'Lange drücken zum Umbenennen' }, c.name),
+      () => { S.ui.classId = c.id; S.ui.tabId = 'students'; save(); render(); }, () => renameClass(c))),
     h('button', { class: 'add', onclick: addClass }, '+ Klasse'));
   const main = document.getElementById('main');
   if (!cls) {
@@ -419,7 +424,8 @@ function render() {
   const go = id => { S.ui.tabId = id; save(); render(); };
   const sub = h('nav', { class: 'tabs sub' },
     h('button', { class: S.ui.tabId === 'students' ? 'active' : '', onclick: () => go('students') }, 'Schüler (' + cls.students.length + ')'),
-    cls.tabs.map(t => h('button', { class: t.id === S.ui.tabId ? 'active' : '', onclick: () => go(t.id) }, t.name)),
+    cls.tabs.map(t => longPress(h('button', { class: t.id === S.ui.tabId ? 'active' : '', title: 'Lange drücken zum Umbenennen' }, t.name),
+      () => go(t.id), () => renameTab(t))),
     h('button', { class: 'add', onclick: addTab }, '+ Reiter'));
   const panel = h('section', { class: 'panel' });
   const tab = cls.tabs.find(t => t.id === S.ui.tabId);
@@ -506,7 +512,43 @@ async function deleteTab(cls, tab) {
   cls.tabs = cls.tabs.filter(t => t !== tab); markDeleted(tab.id); S.ui.tabId = 'students'; save(); render();
 }
 function tsToggle() {
-  return h('label', {}, h('input', { type: 'checkbox', checked: S.settings.showTs, onchange: e => { S.settings.showTs = e.target.checked; save(); render(); } }), 'Zeitstempel');
+  return h('label', { class: 'checkrow' }, h('input', { type: 'checkbox', checked: S.settings.showTs, onchange: e => { S.settings.showTs = e.target.checked; save(); render(); } }), 'Zeitstempel anzeigen');
+}
+/* Kurz tippen = öffnen, lange drücken (oder Rechtsklick) = umbenennen. */
+function longPress(el, onTap, onHold) {
+  let timer = null, fired = false, x = 0, y = 0;
+  const clear = () => { clearTimeout(timer); timer = null; };
+  el.addEventListener('pointerdown', e => {
+    if (e.button) return;
+    fired = false; x = e.clientX; y = e.clientY; clear();
+    timer = setTimeout(() => { timer = null; fired = true; onHold(); }, 550);
+  });
+  el.addEventListener('pointermove', e => { if (timer && Math.hypot(e.clientX - x, e.clientY - y) > 10) clear(); });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(t => el.addEventListener(t, clear));
+  el.addEventListener('click', () => { if (fired) { fired = false; return; } onTap(); });
+  el.addEventListener('contextmenu', e => { e.preventDefault(); if (e.button === 2 && !fired) onHold(); });
+  el.classList.add('hold');
+  return el;
+}
+const ICONS = {
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+  // Platzhalter, bis das eigene Export-Symbol vorliegt.
+  export: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>'
+};
+function iconBtn(name, label, onclick) {
+  const b = h('button', { class: 'iconbtn', title: label, 'aria-label': label, onclick });
+  b.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICONS[name] + '</svg>';
+  return b;
+}
+/* Zahnrad: Einstellungen eines Reiters (Gewichtung, Zeitstempel, Löschen). */
+async function tabSettings(cls, tab) {
+  const actions = [{ label: 'Reiter löschen', cls: 'danger left', value: 'del' }];
+  if (tab.type === 'grades') actions.push({ label: 'Gewichtung', value: 'weights' });
+  actions.push({ label: 'Schließen', primary: true, value: null });
+  const r = await dlg('Einstellungen: ' + tab.name, h('div', {}, tsToggle(),
+    h('p', { class: 'hint' }, 'Umbenennen: den Reiter oben lange gedrückt halten.')), actions);
+  if (r === 'weights') editCategories(tab);
+  if (r === 'del') deleteTab(cls, tab);
 }
 
 /* ---------- Notizen je Schüler ----------
@@ -593,7 +635,6 @@ function renderStudents(panel, cls) {
     h('div', { class: 'bar' },
       h('button', { class: 'primary plus', title: 'Schüler hinzufügen', 'aria-label': 'Schüler hinzufügen', onclick: () => addStudents(cls) }, '+'),
       h('span', { class: 'grow' }),
-      h('button', { class: 'small', onclick: () => renameClass(cls) }, 'Klasse umbenennen'),
       h('button', { class: 'small danger', onclick: () => deleteClass(cls) }, 'Klasse löschen')));
   if (!cls.students.length) {
     panel.append(h('div', { class: 'empty' }, 'Noch keine Schüler. Über „+“ Namen einzeln hinzufügen oder eine Liste importieren (CSV, Excel oder einfügen).'));
@@ -694,13 +735,10 @@ function renderGrades(panel, cls, tab) {
     h('span', { class: 'seg', role: 'group', 'aria-label': 'Zeitraum' },
       [[1, '1. Halbjahr'], [2, '2. Halbjahr'], ['J', 'Jahr']].map(([v, label]) =>
         h('button', { class: v === view ? 'active' : '', 'aria-pressed': String(v === view), onclick: () => setView(v) }, label))),
+    iconBtn('gear', 'Einstellungen', () => tabSettings(cls, tab)),
     view === 'J' ? null : h('button', { class: 'primary', onclick: () => editColumn(tab, null, view) }, '+ Leistung'),
-    h('button', { onclick: () => editCategories(tab) }, 'Gewichtung'),
-    view === 'J' ? null : tsToggle(),
     h('span', { class: 'grow' }),
-    h('button', { class: 'small', onclick: () => exportCsv(cls, tab, view) }, 'CSV-Export'),
-    h('button', { class: 'small', onclick: () => renameTab(tab) }, 'Umbenennen'),
-    h('button', { class: 'small danger', onclick: () => deleteTab(cls, tab) }, 'Löschen')));
+    iconBtn('export', 'CSV-Export', () => exportCsv(cls, tab, view))));
   panel.append(h('p', { class: 'hint' }, tab.categories.map(c => c.name + ' ' + c.weight + ' %').join(' · ') +
     (view === 'J' ? ' · Jahr: je Bereich (1. Halbjahr × 1 + 2. Halbjahr × 2) ÷ 3' : '')));
   if (!cls.students.length) { panel.append(h('div', { class: 'empty' }, 'Zuerst im Reiter „Schüler“ Namen anlegen oder importieren.')); return; }
@@ -832,10 +870,7 @@ function exportCsv(cls, tab, view) {
 function renderList(panel, cls, tab) {
   panel.append(h('div', { class: 'bar' },
     h('button', { class: 'primary', onclick: () => editListColumn(tab, null) }, '+ Spalte'),
-    tsToggle(),
-    h('span', { class: 'grow' }),
-    h('button', { class: 'small', onclick: () => renameTab(tab) }, 'Umbenennen'),
-    h('button', { class: 'small danger', onclick: () => deleteTab(cls, tab) }, 'Löschen')));
+    iconBtn('gear', 'Einstellungen', () => tabSettings(cls, tab))));
   if (!cls.students.length) { panel.append(h('div', { class: 'empty' }, 'Zuerst im Reiter „Schüler“ Namen anlegen oder importieren.')); return; }
   if (!tab.columns.length) panel.append(h('p', { class: 'hint' }, 'Mit „+ Spalte“ z. B. einen Zettel zum Abhaken oder eine Notizspalte anlegen.'));
 
