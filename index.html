@@ -902,11 +902,9 @@ function exportCsv(cls, tab, view) {
 /* ---------- Listen (Rückläufer, Notizen) ---------- */
 function renderList(panel, cls, tab) {
   panel.append(h('div', { class: 'bar' },
-    iconBtn('gear', 'Einstellungen', () => tabSettings(cls, tab)),
-    h('span', { class: 'grow' }),
-    iconBtn('plus', 'Neue Spalte', () => editListColumn(tab, null))));
+    iconBtn('gear', 'Einstellungen', () => tabSettings(cls, tab))));
   if (!cls.students.length) { panel.append(h('div', { class: 'empty' }, 'Zuerst im Reiter „Schüler“ Namen anlegen oder importieren.')); return; }
-  if (!tab.columns.length) panel.append(h('p', { class: 'hint' }, 'Mit dem „+“ rechts z. B. einen Zettel zum Abhaken oder eine Notizspalte anlegen.'));
+  if (!tab.columns.length) panel.append(h('p', { class: 'hint' }, 'Mit dem „+“ an der Tabellenecke z. B. einen Zettel zum Abhaken oder eine Notizspalte anlegen.'));
 
   const foot = {};
   const refreshFoot = () => {
@@ -947,7 +945,9 @@ function renderList(panel, cls, tab) {
     }))));
   const tfoot = h('tfoot', {}, h('tr', {}, h('td', { class: 'name' }, 'Zurück'), tab.columns.map(col => foot[col.id] = h('td', {}))));
   refreshFoot();
-  panel.append(h('div', { class: 'scroll' + (S.settings.showTs ? '' : ' hide-ts') }, h('table', {}, thead, tbody, tfoot)));
+  const plus = iconBtn('plus', 'Neue Spalte', () => editListColumn(tab, null));
+  plus.classList.add('corner');
+  panel.append(h('div', { class: 'tablewrap' }, h('div', { class: 'scroll' + (S.settings.showTs ? '' : ' hide-ts') }, h('table', {}, thead, tbody, tfoot)), plus));
 }
 async function editListColumn(tab, col) {
   const isNew = !col;
