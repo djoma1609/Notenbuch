@@ -6,23 +6,23 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Notenbuch">
-<meta name="theme-color" content="#1b7a66" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#1a4a40" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#202328" media="(prefers-color-scheme: dark)">
 <title>Lehrerkalender – Notenbuch</title>
 <style>
 :root {
   color-scheme: light dark;
-  --bg: #f6f2ea; --panel: #ffffff; --ink: #2a2a33; --muted: #6d6b78; --line: #e7e0d4; --head: #faf6ef;
-  --accent: #1b7a66; --accent-ink: #ffffff; --soft: #e1f3ed; --bad: #b3261e; --good: #1f8a4c;
-  --bar1: #1b7a66; --bar2: #2c9c7c; --bar-ink: #ffffff;
+  --bg: #faf7f3; --panel: #ffffff; --ink: #1d2422; --muted: #6b716e; --line: #e9e3da; --head: #f7f3ed;
+  --accent: #0e3c35; --accent-ink: #ffffff; --soft: #e8ede6; --bad: #b3261e; --good: #2f8f63;
+  --p1: #f6d6da; --p2: #fbe9b7; --p3: #ded8f1; --p4: #cfe7e0; --p5: #f9ddc8;
   --g-good-bg: #e3f6e6; --g-good: #1c6b2e; --g-mid-bg: #fff2d1; --g-mid: #7a5200; --g-low-bg: #fde4df; --g-low: #a3261b;
   --shadow: 0 1px 2px rgba(60, 45, 20, .06), 0 6px 20px rgba(60, 45, 20, .07);
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #16181b; --panel: #202328; --ink: #eceae5; --muted: #a3a1aa; --line: #363a41; --head: #262a30;
-    --accent: #6fd3b8; --accent-ink: #0d2a23; --soft: #1f3a34; --bad: #ff8a80; --good: #58c88a;
-    --bar1: #1a4a40; --bar2: #226152; --bar-ink: #f1fbf8;
+    --accent: #9fd4c4; --accent-ink: #0c2622; --soft: #24362f; --bad: #ff8a80; --good: #58c88a;
+    --p1: #4d3237; --p2: #4b4226; --p3: #393452; --p4: #27463f; --p5: #4d3929;
     --g-good-bg: #1d3a26; --g-good: #9be3ad; --g-mid-bg: #40351a; --g-mid: #f3d58a; --g-low-bg: #45231f; --g-low: #ffaea5;
     --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 20px rgba(0, 0, 0, .25);
   }
@@ -38,18 +38,17 @@ body {
 header.top {
   display: flex; align-items: center; gap: 10px;
   padding: calc(12px + env(safe-area-inset-top)) 16px 12px;
-  background: linear-gradient(120deg, var(--bar1), var(--bar2)); color: var(--bar-ink);
+  background: var(--panel); color: var(--accent); border-bottom: 1px solid var(--line);
 }
-header.top h1 { font-size: 20px; font-weight: 700; letter-spacing: .2px; margin: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+header.top h1 { font-size: 21px; font-weight: 600; letter-spacing: .3px; margin: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 header.top h1::before { content: "📒"; margin-right: 8px; }
-header.top button { background: rgba(255, 255, 255, .16); border-color: transparent; color: var(--bar-ink); border-radius: 999px; padding: 7px 14px; }
-header.top button:hover { background: rgba(255, 255, 255, .26); border-color: transparent; }
-header.top button:focus-visible { outline-color: var(--bar-ink); }
-#btnSync::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 7px; background: rgba(255, 255, 255, .5); vertical-align: 1px; }
-#btnSync[data-state=ok]::before { background: #8df0b4; }
-#btnSync[data-state=busy]::before { background: #ffe08a; }
-#btnSync[data-state=error]::before, #btnSync[data-state=login]::before, #btnSync[data-state=pw]::before, #btnSync[data-state=offline]::before { background: #ffb1a8; }
-#status { font-size: 12px; color: var(--bar-ink); opacity: .8; white-space: nowrap; }
+header.top button { background: var(--soft); border-color: transparent; color: var(--accent); border-radius: 999px; padding: 7px 14px; }
+header.top button:hover { border-color: var(--accent); }
+#btnSync::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 7px; background: #b9b4aa; vertical-align: 1px; }
+#btnSync[data-state=ok]::before { background: #35a868; }
+#btnSync[data-state=busy]::before { background: #e0a100; }
+#btnSync[data-state=error]::before, #btnSync[data-state=login]::before, #btnSync[data-state=pw]::before, #btnSync[data-state=offline]::before { background: #d9493d; }
+#status { font-size: 12px; color: var(--muted); white-space: nowrap; }
 @media (max-width: 560px) { #status { display: none; } header.top { gap: 8px; } header.top h1 { font-size: 18px; } header.top button { padding: 6px 10px; font-size: 14px; } }
 
 button, input, select, textarea { font: inherit; color: inherit; }
@@ -60,7 +59,7 @@ button {
 }
 button:hover { border-color: var(--accent); }
 button:active { transform: translateY(1px); }
-button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; box-shadow: 0 2px 6px rgba(27, 122, 102, .25); }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; box-shadow: 0 2px 6px rgba(14, 60, 53, .22); }
 button.danger { color: var(--bad); }
 button.danger:hover { border-color: var(--bad); }
 button.small { padding: 5px 10px; font-size: 13px; }
@@ -72,8 +71,25 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px s
 .tabs { display: flex; gap: 8px; overflow-x: auto; padding: 14px 16px 4px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
 .tabs::-webkit-scrollbar { display: none; }
 .tabs button { border-radius: 999px; padding: 9px 18px; color: var(--muted); background: var(--panel); font-weight: 600; flex: none; }
-.tabs button.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); box-shadow: 0 2px 8px rgba(27, 122, 102, .28); }
+.tabs button.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); box-shadow: 0 2px 8px rgba(14, 60, 53, .22); }
 .tabs button.add { border-style: dashed; background: transparent; font-weight: 400; }
+#classTabs button:not(.add) { color: var(--ink); border-color: transparent; background: var(--p1); }
+#classTabs button:not(.add):nth-child(5n+2) { background: var(--p2); }
+#classTabs button:not(.add):nth-child(5n+3) { background: var(--p3); }
+#classTabs button:not(.add):nth-child(5n+4) { background: var(--p4); }
+#classTabs button:not(.add):nth-child(5n+5) { background: var(--p5); }
+#classTabs button.active { box-shadow: 0 0 0 2px var(--accent); font-weight: 700; }
+#classTabs button:not(.active):not(.add) { opacity: .75; }
+.namebtn { border: none; background: transparent; padding: 4px 6px; margin: -4px -6px; text-align: left; font: inherit; font-weight: 500; white-space: normal; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; }
+.namebtn:hover { background: var(--soft); }
+.nbadge { background: var(--p2); color: var(--ink); font-size: 11px; font-weight: 700; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.notes { list-style: none; margin: 14px 0 0; padding: 0; max-height: 38vh; overflow-y: auto; }
+.notes li { background: var(--head); border-radius: 12px; padding: 9px 12px; margin-bottom: 8px; display: flex; gap: 8px; align-items: flex-start; }
+.notes li .tx { flex: 1; white-space: pre-wrap; overflow-wrap: anywhere; }
+.notes li .tx small { display: block; color: var(--muted); font-size: 11.5px; margin-bottom: 2px; }
+dialog.dlg textarea.notein { min-height: 110px; }
+.dictrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+button.rec { background: var(--bad); border-color: var(--bad); color: #fff; }
 .tabs.sub { padding: 10px 16px 12px; }
 .tabs.sub button { font-size: 14px; padding: 6px 14px; font-weight: 500; }
 .tabs.sub button.active { background: var(--soft); border-color: var(--accent); color: var(--ink); font-weight: 600; box-shadow: none; }
@@ -232,13 +248,21 @@ function mergeTab(a, b, deleted) {
 }
 function mergeState(a, b) {
   const deleted = { ...(b.deleted || {}), ...(a.deleted || {}) };
+  // Schüler: Name vom neueren Stand, Notizen von beiden Seiten zusammengeführt.
+  const mergeStudent = (x, y) => {
+    const out = { ...newer(x, y) };
+    const notes = mergeList(x.notes || [], y.notes || [], deleted, newer)
+      .sort((p, q) => (p.t || '').localeCompare(q.t || '') || p.id.localeCompare(q.id));
+    if (notes.length) out.notes = notes; else delete out.notes;
+    return out;
+  };
   const out = Object.assign(emptyState(), a, { deleted });
   out.classes = mergeList(a.classes, b.classes || [], deleted, (x, y) => {
     const top = newer(x, y);
     // Reihenfolge der Schüler: Es gilt die Seite, auf der zuletzt sortiert wurde.
     const yFirst = (y.orderM || '') > (x.orderM || '');
     return { id: x.id, name: top.name, m: top.m, orderM: yFirst ? y.orderM : x.orderM,
-      students: yFirst ? mergeList(y.students, x.students, deleted, newer) : mergeList(x.students, y.students, deleted, newer),
+      students: yFirst ? mergeList(y.students, x.students, deleted, mergeStudent) : mergeList(x.students, y.students, deleted, mergeStudent),
       tabs: mergeList(x.tabs, y.tabs, deleted, (p, q) => mergeTab(p, q, deleted)) };
   });
   const sNew = newer(a.settings || {}, b.settings || {});
@@ -492,6 +516,64 @@ function tsToggle() {
   return h('label', {}, h('input', { type: 'checkbox', checked: S.settings.showTs, onchange: e => { S.settings.showTs = e.target.checked; save(); render(); } }), 'Zeitstempel');
 }
 
+/* ---------- Notizen je Schüler ----------
+   st.notes = [{ id, text, t (angelegt), m (geändert) }] – jede Notiz mit Zeitstempel,
+   damit sie später ausgewertet werden können. */
+const noteCount = st => (st.notes || []).length;
+function nameBtn(st) {
+  const n = noteCount(st);
+  return h('button', { class: 'namebtn', title: 'Notizen zu ' + st.name, onclick: () => studentNotes(st) },
+    st.name, n ? h('span', { class: 'nbadge', 'aria-label': n + ' Notizen' }, n) : null);
+}
+async function studentNotes(st) {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const ta = h('textarea', { class: 'notein', placeholder: 'Notiz tippen oder diktieren …', 'aria-label': 'Neue Notiz' });
+  const list = h('ul', { class: 'notes' });
+  const msg = h('span', { class: 'hint' }, SR ? '' : 'Zum Diktieren die Mikrofon-Taste der Tastatur antippen.');
+  let rec = null;
+  const stop = () => { if (rec) { try { rec.stop(); } catch (e) {} } };
+  const addNote = () => {
+    const text = ta.value.trim(); if (!text) return false;
+    const n = nowIso();
+    (st.notes || (st.notes = [])).push({ id: uid(), text, t: n, m: n });
+    ta.value = ''; save(); draw(); return true;
+  };
+  const draw = () => {
+    list.replaceChildren(...[...(st.notes || [])].sort((a, b) => b.t.localeCompare(a.t)).map(note => h('li', {},
+      h('div', { class: 'tx' }, h('small', {}, fmtTs(note.t, true)), note.text),
+      h('button', { class: 'small danger', title: 'Notiz löschen', onclick: async () => {
+        if (!await confirmDlg('Notiz löschen', 'Diese Notiz vom ' + fmtTs(note.t) + ' löschen?')) return;
+        st.notes = st.notes.filter(x => x !== note); markDeleted(note.id); save(); draw();
+      } }, 'Löschen'))));
+    if (!noteCount(st)) list.append(h('li', {}, h('div', { class: 'tx hint' }, 'Noch keine Notizen.')));
+  };
+  draw();
+  const row = h('div', { class: 'dictrow' });
+  if (SR) {
+    const mic = h('button', { type: 'button' }, '🎤 Diktieren');
+    mic.addEventListener('click', () => {
+      if (rec) { stop(); return; }
+      const base = ta.value ? ta.value.replace(/\s*$/, ' ') : '';
+      try {
+        rec = new SR(); rec.lang = 'de-DE'; rec.continuous = true; rec.interimResults = true;
+        rec.onresult = e => { let s = ''; for (const r of e.results) s += r[0].transcript; ta.value = base + s; };
+        rec.onerror = e => { msg.textContent = e.error === 'not-allowed' ? 'Mikrofon nicht freigegeben. Bitte erlauben oder die Mikrofon-Taste der Tastatur nutzen.' : 'Diktieren ist hier nicht möglich – bitte die Mikrofon-Taste der Tastatur nutzen.'; };
+        rec.onend = () => { rec = null; mic.textContent = '🎤 Diktieren'; mic.classList.remove('rec'); };
+        rec.start(); mic.textContent = '■ Stopp'; mic.classList.add('rec'); msg.textContent = 'Ich höre zu …';
+      } catch (e) { rec = null; msg.textContent = 'Diktieren ist hier nicht möglich – bitte die Mikrofon-Taste der Tastatur nutzen.'; }
+    });
+    row.append(mic);
+  }
+  row.append(msg);
+  await dlg('Notizen: ' + st.name, h('div', {}, ta, row, list), [
+    { label: 'Schließen', value: null },
+    { label: 'Notiz speichern', primary: true, fn: () => { stop(); addNote(); ta.focus(); return KEEP; } }
+  ]);
+  stop();
+  addNote();   // Angefangenen Text beim Schließen nicht verlieren.
+  render();
+}
+
 /* ---------- Schüler ---------- */
 function renderStudents(panel, cls) {
   const inp = h('input', { type: 'text', placeholder: 'Name hinzufügen (Nachname, Vorname)', style: 'max-width:320px' });
@@ -515,7 +597,7 @@ function renderStudents(panel, cls) {
   }
   panel.append(h('ul', { class: 'students' }, cls.students.map((st, i) => h('li', {},
     h('span', { class: 'nr' }, (i + 1) + '.'),
-    h('span', { class: 'nm' }, st.name),
+    h('span', { class: 'nm' }, nameBtn(st)),
     h('button', { class: 'small', onclick: async () => { const n = await askText('Schüler umbenennen', 'Name', st.name); if (n) { st.name = n; st.m = nowIso(); save(); render(); } } }, 'Umbenennen'),
     h('button', { class: 'small danger', onclick: async () => {
       if (!await confirmDlg('Schüler löschen', '„' + st.name + '“ samt allen Noten und Einträgen in dieser Klasse löschen?')) return;
@@ -631,7 +713,7 @@ function renderGrades(panel, cls, tab) {
     const defTds = defs.map(d => h('td', { class: d.final ? 'avg note' : 'avg calc' }));
     const refresh = () => defs.forEach((d, i) => { defTds[i].textContent = fmtOpt(d.get(st.id)); });
     refresh();
-    return h('tr', {}, h('td', { class: 'name' }, st.name),
+    return h('tr', {}, h('td', { class: 'name' }, nameBtn(st)),
       cols.map(col => {
         const c = getCell(tab, st.id, col.id);
         const ts = h('span', { class: 'ts' }, tsText(c));
@@ -759,7 +841,7 @@ function renderList(panel, cls, tab) {
   const thead = h('thead', {}, h('tr', {}, h('th', { class: 'name' }, 'Name'),
     tab.columns.map(col => h('th', {}, h('button', { class: 'colbtn', title: 'Spalte bearbeiten', onclick: () => editListColumn(tab, col) },
       col.name, h('small', {}, col.type === 'check' ? 'Abhaken' : 'Notiz'))))));
-  const tbody = h('tbody', {}, cls.students.map(st => h('tr', {}, h('td', { class: 'name' }, st.name),
+  const tbody = h('tbody', {}, cls.students.map(st => h('tr', {}, h('td', { class: 'name' }, nameBtn(st)),
     tab.columns.map(col => {
       const c = getCell(tab, st.id, col.id);
       const ts = h('span', { class: 'ts' }, tsText(c));
