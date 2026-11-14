@@ -31,14 +31,14 @@ header.top {
   background: var(--panel); color: var(--accent); border-bottom: 1px solid var(--line);
 }
 header.top h1 { font-size: 21px; font-weight: 600; letter-spacing: .3px; margin: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-header.top button { background: var(--soft); border-color: transparent; color: var(--accent); border-radius: 999px; padding: 7px 14px; }
+header.top button { background: var(--soft); border-color: transparent; color: var(--accent); width: 44px; height: 44px; }
+#btnSync[data-state=off] .arrows { opacity: .45; }
+#btnSync[data-state=busy] svg { animation: spin 1.1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { #btnSync[data-state=busy] svg { animation: none; } }
 header.top button:hover { border-color: var(--accent); }
-#btnSync::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 7px; background: #b9b4aa; vertical-align: 1px; }
-#btnSync[data-state=ok]::before { background: #35a868; }
-#btnSync[data-state=busy]::before { background: #e0a100; }
-#btnSync[data-state=error]::before, #btnSync[data-state=login]::before, #btnSync[data-state=pw]::before, #btnSync[data-state=offline]::before { background: #d9493d; }
 #status { font-size: 12px; color: var(--muted); white-space: nowrap; }
-@media (max-width: 560px) { #status { display: none; } header.top { gap: 8px; } header.top h1 { font-size: 18px; } header.top button { padding: 6px 10px; font-size: 14px; } }
+@media (max-width: 560px) { #status { display: none; } header.top { gap: 8px; } header.top h1 { font-size: 18px; } }
 
 button, input, select, textarea { font: inherit; color: inherit; }
 button {
@@ -160,8 +160,8 @@ dialog.dlg textarea { min-height: 180px; resize: vertical; }
 <header class="top">
   <h1>Notenbuch</h1>
   <span id="status"></span>
-  <button id="btnSync">Abgleich aus</button>
-  <button id="btnBackup">Sicherung</button>
+  <button id="btnSync" class="iconbtn" type="button" aria-label="Abgleich"></button>
+  <button id="btnBackup" class="iconbtn" type="button" title="Sicherung und Einstellungen" aria-label="Sicherung und Einstellungen"></button>
 </header>
 <nav class="tabs" id="classTabs"></nav>
 <main id="main"></main>
@@ -553,9 +553,16 @@ const ICONS = {
   close: '<line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>',
   check: '<polyline points="20 6 9 17 4 12"/>'
 };
+const svgIcon = (inner, size) => '<svg viewBox="0 0 24 24" width="' + (size || 20) + '" height="' + (size || 20) + '" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + inner + '</svg>';
+ICONS.backup = '<path d="M10 5H9a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-1"/><path d="M7 9H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-3"/><line x1="13.5" y1="2" x2="13.5" y2="11.5"/><polyline points="10.5 8.5 13.5 11.5 16.5 8.5"/>';
+ICONS.sync = '<g class="arrows"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></g>';
+const SYNC_MARK = {
+  ok: '<polyline points="8.5 12.3 11 14.8 15.5 9.6" stroke="var(--good)" stroke-width="2.6"/>',
+  bad: '<path d="M9.4 9.4l5.2 5.2M14.6 9.4l-5.2 5.2" stroke="var(--bad)" stroke-width="2.6"/>'
+};
 function iconBtn(name, label, onclick) {
   const b = h('button', { type: 'button', class: 'iconbtn', title: label, 'aria-label': label, onclick });
-  b.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICONS[name] + '</svg>';
+  b.innerHTML = svgIcon(ICONS[name]);
   return b;
 }
 /* Zahnrad: Einstellungen eines Reiters (Gewichtung, Zeitstempel, Löschen). */
@@ -1027,10 +1034,11 @@ function markDirty() {
 }
 function setSync(state, msg) {
   syncState = state; syncMsg = msg || '';
-  const labels = { off: 'Abgleich aus', ok: 'Abgleich ✓', busy: 'Abgleich …', offline: 'Offline', error: 'Abgleich ⚠', login: 'Anmelden ⚠', pw: 'Passwort ⚠' };
+  const labels = { off: 'Abgleich aus', ok: 'Abgleich in Ordnung', busy: 'Abgleich läuft', offline: 'Offline', error: 'Abgleich fehlgeschlagen', login: 'Bitte neu anmelden', pw: 'Passwort nötig' };
   const b = document.getElementById('btnSync');
-  b.textContent = labels[state]; b.dataset.state = state;
-  b.title = msg || '';
+  b.innerHTML = svgIcon(ICONS.sync + (state === 'ok' ? SYNC_MARK.ok : ['error', 'login', 'pw', 'offline'].includes(state) ? SYNC_MARK.bad : ''), 27);
+  b.dataset.state = state;
+  b.title = labels[state] + (msg ? ': ' + msg : ''); b.setAttribute('aria-label', b.title);
 }
 function b64url(bytes) { return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
 
@@ -1354,6 +1362,7 @@ setInterval(() => { if (!document.hidden) sync(); }, 60000);
 
 document.getElementById('btnSync').addEventListener('click', syncDialog);
 document.getElementById('btnBackup').addEventListener('click', backupDialog);
+document.getElementById('btnBackup').innerHTML = svgIcon(ICONS.backup, 27);
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
   navigator.serviceWorker.register('sw.js').catch(e => console.warn('Offline-Modus nicht verfügbar:', e));
