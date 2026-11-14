@@ -135,7 +135,6 @@ button.iconbtn { width: 40px; height: 40px; padding: 0; border-radius: 50%; disp
 button.hold { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
 .checkrow { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
 .checkrow input { width: 20px; height: 20px; accent-color: var(--accent); }
-button.plus { width: 42px; height: 42px; padding: 0; border-radius: 50%; font-size: 24px; line-height: 1; }
 button.icon { min-width: 34px; padding-left: 0; padding-right: 0; }
 button:disabled { opacity: .35; cursor: default; }
 .narrow { display: none; }
@@ -143,11 +142,16 @@ button:disabled { opacity: .35; cursor: default; }
 
 dialog.dlg { border: none; border-radius: 20px; background: var(--panel); color: var(--ink); padding: 22px; width: min(520px, calc(100vw - 32px)); box-shadow: 0 20px 60px rgba(0, 0, 0, .3); }
 dialog.dlg::backdrop { background: rgba(30, 25, 15, .45); }
-dialog.dlg h2 { margin: 0 0 14px; font-size: 19px; }
+dialog.dlg .dlg-head { display: flex; align-items: center; gap: 10px; margin: -6px -6px 16px; }
+dialog.dlg .dlg-head h2 { flex: 1; margin: 0; font-size: 17px; text-align: center; overflow-wrap: anywhere; }
+dialog.dlg .dlg-sp { width: 40px; flex: none; }
+button.iconbtn.primary { color: var(--accent-ink); }
+.hintrow { display: flex; align-items: center; gap: 10px; margin: 2px 0 12px; }
+.hintrow .hint { flex: 1; margin: 0; }
 dialog.dlg .field { display: block; margin-bottom: 12px; }
 dialog.dlg .field > span { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
 dialog.dlg textarea { min-height: 180px; resize: vertical; }
-.dlg-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin-top: 18px; }
+.dlg-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-start; margin-top: 18px; }
 .dlg-actions .left { margin-right: auto; }
 .catrow { display: grid; grid-template-columns: 1fr 90px auto; gap: 8px; margin-bottom: 8px; align-items: center; }
 </style>
@@ -305,21 +309,32 @@ function tsText(c) {
 
 /* ---------- Dialoge ---------- */
 const KEEP = Symbol('keep');
+/* Oben links ✕ = abbrechen/schließen, oben rechts ✓ = speichern und schließen.
+   Weitere Aktionen (z. B. Löschen) bleiben als Knöpfe unten. */
 function dlg(title, content, actions) {
   return new Promise(resolve => {
     const d = h('dialog', { class: 'dlg' });
     const close = v => { d.close(); d.remove(); resolve(v); };
     const run = async a => { const v = a.fn ? await a.fn() : a.value; if (v !== KEEP) close(v); };
-    const form = h('form', { onsubmit: e => { e.preventDefault(); const a = actions.find(a => a.primary); if (a) run(a); } },
-      h('h2', {}, title), content,
-      h('div', { class: 'dlg-actions' }, actions.map(a =>
-        h('button', { type: a.primary ? 'submit' : 'button', class: a.cls || (a.primary ? 'primary' : ''), onclick: a.primary ? null : () => run(a) }, a.label))));
+    const primary = actions.find(a => a.primary);
+    const isCancel = a => !a.primary && !a.fn && !a.cls && (a.value == null || a.value === false);
+    const cancel = actions.find(isCancel);
+    const cancelVal = cancel ? cancel.value : null;
+    const asCheck = primary && !primary.button;
+    const extras = actions.filter(a => !isCancel(a) && !(a === primary && asCheck));
+    const x = iconBtn('close', cancel ? cancel.label : 'Schließen', () => close(cancelVal));
+    let ok = h('span', { class: 'dlg-sp' });
+    if (asCheck) { ok = iconBtn('check', primary.label); ok.type = 'submit'; ok.classList.add('primary'); }
+    const form = h('form', { onsubmit: e => { e.preventDefault(); if (primary) run(primary); } },
+      h('div', { class: 'dlg-head' }, x, h('h2', {}, title), ok), content,
+      extras.length ? h('div', { class: 'dlg-actions' }, extras.map(a =>
+        h('button', { type: a.primary ? 'submit' : 'button', class: a.cls || (a.primary ? 'primary' : ''), onclick: a.primary ? null : () => run(a) }, a.label))) : null);
     d.append(form);
-    d.addEventListener('cancel', e => { e.preventDefault(); close(null); });
+    d.addEventListener('cancel', e => { e.preventDefault(); close(cancelVal); });
     document.body.append(d);
     d.showModal();
     const f = d.querySelector('input[type=text], input[type=password], textarea');
-    if (f) { f.focus(); f.select(); }
+    if (f) { f.focus(); f.select(); } else d.focus();
   });
 }
 function field(label, input) { return h('label', { class: 'field' }, h('span', {}, label), input); }
@@ -533,18 +548,21 @@ function longPress(el, onTap, onHold) {
 const ICONS = {
   gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
   // Platzhalter, bis das eigene Export-Symbol vorliegt.
-  export: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>'
+  export: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
+  plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  close: '<line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>',
+  check: '<polyline points="20 6 9 17 4 12"/>'
 };
 function iconBtn(name, label, onclick) {
-  const b = h('button', { class: 'iconbtn', title: label, 'aria-label': label, onclick });
+  const b = h('button', { type: 'button', class: 'iconbtn', title: label, 'aria-label': label, onclick });
   b.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICONS[name] + '</svg>';
   return b;
 }
 /* Zahnrad: Einstellungen eines Reiters (Gewichtung, Zeitstempel, Löschen). */
 async function tabSettings(cls, tab) {
-  const actions = [{ label: 'Reiter löschen', cls: 'danger left', value: 'del' }];
+  const actions = [];
   if (tab.type === 'grades') actions.push({ label: 'Gewichtung', value: 'weights' });
-  actions.push({ label: 'Schließen', primary: true, value: null });
+  actions.push({ label: 'Reiter löschen', cls: 'danger', value: 'del' });
   const r = await dlg('Einstellungen: ' + tab.name, h('div', {}, tsToggle(),
     h('p', { class: 'hint' }, 'Umbenennen: den Reiter oben lange gedrückt halten.')), actions);
   if (r === 'weights') editCategories(tab);
@@ -602,25 +620,26 @@ async function studentNotes(st) {
   row.append(msg);
   await dlg('Notizen: ' + st.name, h('div', {}, ta, row, list), [
     { label: 'Schließen', value: null },
-    { label: 'Notiz speichern', primary: true, fn: () => { stop(); addNote(); ta.focus(); return KEEP; } }
+    { label: 'Notiz speichern', primary: true, fn: () => { stop(); addNote(); return 'ok'; } }
   ]);
   stop();
-  addNote();   // Angefangenen Text beim Schließen nicht verlieren.
   render();
 }
 
 /* ---------- Schüler ---------- */
 async function addStudents(cls) {
   const inp = h('input', { type: 'text', placeholder: 'Nachname, Vorname', autocomplete: 'off', autocapitalize: 'words' });
-  const info = h('p', { class: 'hint' }, 'Namen einzeln eintragen oder eine ganze Liste importieren.');
+  const info = h('p', { class: 'hint' }, 'Eingabetaste: Name übernehmen und nächsten eintragen. Haken: übernehmen und schließen.');
+  const add = () => {
+    const n = inp.value.trim(); if (!n) return;
+    cls.students.push({ id: uid(), name: n, m: nowIso() }); save();
+    info.textContent = '„' + n + '“ hinzugefügt. Nächster Name?'; inp.value = '';
+  };
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
   const r = await dlg('Schüler hinzufügen', h('div', {}, field('Name', inp), info), [
     { label: 'Namensliste importieren', cls: 'left', value: 'import' },
-    { label: 'Fertig', value: null },
-    { label: 'Hinzufügen', primary: true, fn: () => {
-      const n = inp.value.trim();
-      if (n) { cls.students.push({ id: uid(), name: n, m: nowIso() }); save(); info.textContent = '„' + n + '“ hinzugefügt. Nächster Name?'; inp.value = ''; }
-      inp.focus(); return KEEP;
-    } }
+    { label: 'Abbrechen', value: null },
+    { label: 'Hinzufügen', primary: true, fn: () => { add(); return 'ok'; } }
   ]);
   if (r === 'import') return importStudents(cls);
   render();
@@ -633,7 +652,7 @@ function renderStudents(panel, cls) {
   };
   panel.append(
     h('div', { class: 'bar' },
-      h('button', { class: 'primary plus', title: 'Schüler hinzufügen', 'aria-label': 'Schüler hinzufügen', onclick: () => addStudents(cls) }, '+'),
+      iconBtn('plus', 'Schüler hinzufügen', () => addStudents(cls)),
       h('span', { class: 'grow' }),
       h('button', { class: 'small danger', onclick: () => deleteClass(cls) }, 'Klasse löschen')));
   if (!cls.students.length) {
@@ -733,16 +752,17 @@ function renderGrades(panel, cls, tab) {
   const defs = calcColumns(tab, view);
   panel.append(h('div', { class: 'bar' },
     h('span', { class: 'seg', role: 'group', 'aria-label': 'Zeitraum' },
-      [[1, '1. Halbjahr'], [2, '2. Halbjahr'], ['J', 'Jahr']].map(([v, label]) =>
-        h('button', { class: v === view ? 'active' : '', 'aria-pressed': String(v === view), onclick: () => setView(v) }, label))),
+      [[1, '1. Halbjahr', '1. Hj'], [2, '2. Halbjahr', '2. Hj'], ['J', 'Jahr', 'Jahr']].map(([v, label, short]) =>
+        h('button', { class: v === view ? 'active' : '', 'aria-pressed': String(v === view), 'aria-label': label, onclick: () => setView(v) },
+          h('span', { class: 'wide' }, label), h('span', { class: 'narrow' }, short)))),
     iconBtn('gear', 'Einstellungen', () => tabSettings(cls, tab)),
-    view === 'J' ? null : h('button', { class: 'primary', onclick: () => editColumn(tab, null, view) }, '+ Leistung'),
     h('span', { class: 'grow' }),
     iconBtn('export', 'CSV-Export', () => exportCsv(cls, tab, view))));
-  panel.append(h('p', { class: 'hint' }, tab.categories.map(c => c.name + ' ' + c.weight + ' %').join(' · ') +
-    (view === 'J' ? ' · Jahr: je Bereich (1. Halbjahr × 1 + 2. Halbjahr × 2) ÷ 3' : '')));
+  panel.append(h('div', { class: 'hintrow' }, h('p', { class: 'hint' }, tab.categories.map(c => c.name + ' ' + c.weight + ' %').join(' · ') +
+    (view === 'J' ? ' · Jahr: je Bereich (1. Halbjahr × 1 + 2. Halbjahr × 2) ÷ 3' : '')),
+    view === 'J' ? null : iconBtn('plus', 'Neue Leistung', () => editColumn(tab, null, view))));
   if (!cls.students.length) { panel.append(h('div', { class: 'empty' }, 'Zuerst im Reiter „Schüler“ Namen anlegen oder importieren.')); return; }
-  if (view !== 'J' && !cols.length) panel.append(h('p', { class: 'hint' }, 'Im ' + view + '. Halbjahr gibt es noch keine Leistung. Mit „+ Leistung“ eine Spalte anlegen (z. B. Klassenarbeit 1). Noten als 1–6 eingeben, optional mit + oder − (z. B. 2+).'));
+  if (view !== 'J' && !cols.length) panel.append(h('p', { class: 'hint' }, 'Im ' + view + '. Halbjahr gibt es noch keine Leistung. Mit dem „+“ rechts eine Spalte anlegen (z. B. Klassenarbeit 1). Noten als 1–6 eingeben, optional mit + oder − (z. B. 2+).'));
 
   const footCells = {};
   const defFoot = defs.map(() => h('td', {}));
@@ -869,10 +889,11 @@ function exportCsv(cls, tab, view) {
 /* ---------- Listen (Rückläufer, Notizen) ---------- */
 function renderList(panel, cls, tab) {
   panel.append(h('div', { class: 'bar' },
-    h('button', { class: 'primary', onclick: () => editListColumn(tab, null) }, '+ Spalte'),
-    iconBtn('gear', 'Einstellungen', () => tabSettings(cls, tab))));
+    iconBtn('gear', 'Einstellungen', () => tabSettings(cls, tab)),
+    h('span', { class: 'grow' }),
+    iconBtn('plus', 'Neue Spalte', () => editListColumn(tab, null))));
   if (!cls.students.length) { panel.append(h('div', { class: 'empty' }, 'Zuerst im Reiter „Schüler“ Namen anlegen oder importieren.')); return; }
-  if (!tab.columns.length) panel.append(h('p', { class: 'hint' }, 'Mit „+ Spalte“ z. B. einen Zettel zum Abhaken oder eine Notizspalte anlegen.'));
+  if (!tab.columns.length) panel.append(h('p', { class: 'hint' }, 'Mit dem „+“ rechts z. B. einen Zettel zum Abhaken oder eine Notizspalte anlegen.'));
 
   const foot = {};
   const refreshFoot = () => {
@@ -961,7 +982,7 @@ async function backupDialog() {
         h('p', { class: 'hint' }, 'Zusammenführen: Einträge von beiden Geräten bleiben erhalten, bei Unterschieden gilt der neuere Eintrag. Ersetzen: Der Stand auf diesem Gerät wird verworfen.')), [
         { label: 'Abbrechen', value: null },
         { label: 'Ersetzen', cls: 'danger', value: 'replace' },
-        { label: 'Zusammenführen', primary: true, value: 'merge' }
+        { label: 'Zusammenführen', primary: true, button: true, value: 'merge' }
       ]);
       e.target.value = '';
       if (!how) return;
@@ -1302,9 +1323,9 @@ async function syncDialog() {
   if (!canSync) {
     body.append(h('p', { class: 'hint' }, 'Der Abgleich funktioniert nur unter ' + REDIRECT));
   } else if (!auth || auth.needLogin) {
-    actions.push({ label: auth ? 'Erneut anmelden' : 'Mit Microsoft anmelden', primary: true, fn: async () => { await login(false); return KEEP; } });
+    actions.push({ label: auth ? 'Erneut anmelden' : 'Mit Microsoft anmelden', primary: true, button: true, fn: async () => { await login(false); return KEEP; } });
   } else if (auth.needPw) {
-    actions.push({ label: 'Passwort eingeben', primary: true, value: 'unlock' });
+    actions.push({ label: 'Passwort eingeben', primary: true, button: true, value: 'unlock' });
   } else {
     // Verschlüsselung ist vorbereitet, aber noch nicht freigeschaltet (erst muss der Abgleich stabil laufen).
     if (auth.key) actions.push({ label: 'Passwort ändern', value: 'set' });
