@@ -201,6 +201,7 @@ dialog.dlg textarea { min-height: 180px; resize: vertical; }
 .dlg-actions.stack { flex-direction: column; align-items: stretch; }
 .dlg-actions.stack button { text-align: left; padding: 11px 14px; }
 .tablewrap { position: relative; margin-top: 14px; }
+.panel > .tablewrap:first-child { margin-top: 26px; }
 button.iconbtn.corner { position: absolute; top: -18px; right: -10px; z-index: 3; box-shadow: var(--shadow); }
 .dlg-actions .left { margin-right: auto; }
 .catrow { display: grid; grid-template-columns: 1fr 90px auto; gap: 8px; margin-bottom: 8px; align-items: center; }
@@ -676,8 +677,14 @@ async function addClass() {
   save(); render();
 }
 async function renameClass(cls) {
-  const name = await askText('Klasse umbenennen', 'Name', cls.name);
-  if (name) { cls.name = name; cls.m = nowIso(); save(); render(); }
+  const inp = h('input', { type: 'text', value: cls.name });
+  const r = await dlg('Klasse umbenennen', field('Name', inp), [
+    { label: 'Klasse löschen', cls: 'danger left', value: 'del' },
+    { label: 'Abbrechen', value: null },
+    { label: 'Speichern', primary: true, fn: () => inp.value.trim() ? 'ok' : KEEP }
+  ]);
+  if (r === 'del') return deleteClass(cls);
+  if (r === 'ok') { cls.name = inp.value.trim(); cls.m = nowIso(); save(); render(); }
 }
 async function deleteClass(cls) {
   if (!await confirmDlg('Klasse löschen', 'Klasse „' + cls.name + '“ mit allen Schülern, Noten und Listen endgültig löschen?')) return;
@@ -880,10 +887,6 @@ function renderStudents(panel, cls) {
   };
   const plus = iconBtn('plus', 'Schüler hinzufügen', () => addStudents(cls));
   plus.classList.add('corner');
-  panel.append(
-    h('div', { class: 'bar' },
-      h('span', { class: 'grow' }),
-      h('button', { class: 'small danger', onclick: () => deleteClass(cls) }, 'Klasse löschen')));
   if (!cls.students.length) {
     panel.append(h('div', { class: 'tablewrap' }, h('div', { class: 'empty' }, 'Noch keine Schüler. Über das „+“ rechts Namen einzeln hinzufügen oder eine Liste importieren (CSV, Excel oder einfügen).'), plus));
     return;
