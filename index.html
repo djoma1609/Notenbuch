@@ -748,8 +748,24 @@ function iconBtn(name, label, onclick) {
   b.innerHTML = svgIcon(ICONS[name]);
   return b;
 }
-/* Zahnrad: oben die Grundeinstellungen für alle Fächer, darunter die Aktionen für diesen Reiter. */
+/* Zahnrad: Grundeinstellungen für alle Fächer und die Aktionen für diesen Reiter. */
 async function tabSettings(cls, tab) {
+  const actions = [{ label: 'Berechnung der Jahresnote', value: 'calc' }];
+  if (tab.type === 'grades') actions.push({ label: 'Gewichtung der Bereiche', value: 'weights' });
+  actions.push({ label: tab.name + ' umbenennen', value: 'rename' });
+  actions.push({ label: tab.name + ' löschen', cls: 'danger', value: 'del' });
+  actions.push({ label: 'Fertig', primary: true, value: null });
+  actions.stack = true;
+  const r = await dlg('Einstellungen', h('div', {},
+    h('h3', { class: 'sec' }, 'Grundlegende Einstellungen für alle Fächer'),
+    tsToggle()), actions);
+  if (r === 'calc') { await calcSettings(); return tabSettings(cls, tab); }
+  if (r === 'weights') editCategories(tab);
+  if (r === 'rename') renameTab(tab);
+  if (r === 'del') deleteTab(cls, tab);
+}
+/* Berechnung: Wert der Tendenzen und Gewichte der Halbjahre (gilt für alle Fächer). */
+async function calcSettings() {
   const tend = h('select', { value: String(S.settings.tendency) },
     h('option', { value: '0.25' }, '0,25 (2+ = 1,75 · 2− = 2,25)'),
     h('option', { value: '0.33' }, '0,33 (2+ = 1,67 · 2− = 2,33)'),
@@ -770,23 +786,11 @@ async function tabSettings(cls, tab) {
   };
   w1.addEventListener('change', saveW); w2.addEventListener('change', saveW);
   showFormula();
-  const actions = [];
-  if (tab.type === 'grades') actions.push({ label: 'Gewichtung der Bereiche', value: 'weights' });
-  actions.push({ label: 'Reiter umbenennen', value: 'rename' });
-  actions.push({ label: 'Reiter löschen', cls: 'danger', value: 'del' });
-  actions.push({ label: 'Fertig', primary: true, value: null });
-  actions.stack = true;
-  actions.heading = (tab.type === 'grades' ? 'Dieses Fach: ' : 'Diese Liste: ') + tab.name;
-  const r = await dlg('Einstellungen', h('div', {},
-    h('h3', { class: 'sec' }, 'Grundlegende Einstellungen für alle Fächer'),
-    tsToggle(),
+  await dlg('Berechnung der Jahresnote', h('div', {},
     field('Wert von + und − bei der Berechnung', tend),
-    h('div', { class: 'field' }, h('span', {}, 'Berechnung der Jahresnote'),
+    h('div', { class: 'field' }, h('span', {}, 'Gewicht der Halbjahre'),
       h('div', { class: 'yearw' }, h('label', {}, '1. Halbjahr ×', w1), h('label', {}, '2. Halbjahr ×', w2)),
-      formula)), actions);
-  if (r === 'weights') editCategories(tab);
-  if (r === 'rename') renameTab(tab);
-  if (r === 'del') deleteTab(cls, tab);
+      formula)), [{ label: 'Fertig', primary: true, fn: () => { saveW(); return 'ok'; } }]);
 }
 
 /* ---------- Notizen je Schüler ----------
