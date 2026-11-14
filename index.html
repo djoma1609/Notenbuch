@@ -218,6 +218,12 @@ body.drawer-open #drawerShade { opacity: 1; pointer-events: auto; }
 #drawer .field { display: block; margin-bottom: 12px; }
 #drawer .field > span { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
 #drawer button.row { display: block; width: 100%; text-align: left; padding: 11px 14px; margin-bottom: 8px; white-space: normal; }
+#drawer button.fold { display: flex; justify-content: space-between; align-items: center; }
+#drawer button.fold::after { content: "›"; font-size: 20px; line-height: 1; color: var(--muted); transition: rotate .2s; }
+#drawer button.fold[aria-expanded=true]::after { rotate: 90deg; }
+#drawer .fold-body { padding: 4px 4px 6px; }
+#drawer .fold-body[hidden] { display: none; }
+#drawer .switchrow { padding-top: 0; }
 .panel > .tablewrap:first-child { margin-top: 26px; }
 button.iconbtn.corner { position: absolute; top: -18px; right: -10px; z-index: 3; box-shadow: var(--shadow); }
 .dlg-actions .left { margin-right: auto; }
@@ -819,16 +825,15 @@ function calcFields() {
   };
   w1.addEventListener('change', commit); w2.addEventListener('change', commit);
   showFormula();
-  const el = h('div', {},
-    field('Wert von + und − bei der Berechnung', tend),
-    h('div', { class: 'field' }, h('span', {}, 'Berechnung der Jahresnote: Gewicht der Halbjahre'),
+  const tendEl = field('Wert von + und − bei der Berechnung', tend);
+  const weightEl = h('div', { class: 'field' }, h('span', {}, 'Gewicht der Halbjahre'),
       h('div', { class: 'yearw' }, h('label', {}, '1. Halbjahr ×', w1), h('label', {}, '2. Halbjahr ×', w2)),
-      formula));
-  return { el, commit };
+      formula);
+  return { tendEl, weightEl, commit };
 }
 async function calcSettings() {
   const c = calcFields();
-  await dlg('Berechnung der Jahresnote', c.el, [{ label: 'Fertig', primary: true, fn: () => { c.commit(); return 'ok'; } }]);
+  await dlg('Berechnung der Jahresnote', h('div', {}, c.tendEl, c.weightEl), [{ label: 'Fertig', primary: true, fn: () => { c.commit(); return 'ok'; } }]);
 }
 
 /* ---------- Einstellungs-Leiste am rechten Rand ----------
@@ -840,9 +845,19 @@ function renderDrawer() {
   const cls = curClass(), tab = cls && cls.tabs.find(t => t.id === S.ui.tabId);
   const act = (label, fn, danger) => h('button', { class: 'row' + (danger ? ' danger' : ''), onclick: () => { toggleDrawer(false); fn(); } }, label);
   const sec = t => h('h3', { class: 'sec' }, t);
+  const calc = calcFields();
+  // Aufklappbarer Bereich: Knopf zeigt oder verbirgt den Inhalt darunter.
+  const fold = (label, content) => {
+    const body = h('div', { class: 'fold-body', hidden: true }, content);
+    const btn = h('button', { class: 'row fold', 'aria-expanded': 'false' }, label);
+    btn.addEventListener('click', () => { const open = body.hidden; body.hidden = !open; btn.setAttribute('aria-expanded', String(open)); });
+    return [btn, body];
+  };
   document.getElementById('drawer').replaceChildren(...[
     h('h2', {}, 'Einstellungen'),
-    sec('Grundlegende Einstellungen für alle Fächer'), tsToggle(), calcFields().el,
+    tsToggle(),
+    ...fold('Tendenz der Note', calc.tendEl),
+    ...fold('Berechnung der Jahresnote', calc.weightEl),
     tab ? sec(tab.name) : null,
     tab && tab.type === 'grades' ? act('Gewichtung der Bereiche', () => editCategories(tab)) : null,
     tab ? act(tab.name + ' umbenennen', () => renameTab(tab)) : null,
