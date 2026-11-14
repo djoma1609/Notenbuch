@@ -227,6 +227,10 @@ body.drawer-open #drawerShade { opacity: 1; pointer-events: auto; }
 #drawer button.fold[aria-expanded=true]::after { rotate: 90deg; }
 #drawer .fold-body { padding: 4px 4px 6px; }
 #drawer .fold-body[hidden] { display: none; }
+#drawer form.inline .dlg-actions { margin-top: 10px; }
+#drawer .fold-body { border-left: 3px solid var(--soft); margin: 0 0 10px 6px; padding: 4px 4px 6px 10px; }
+.switchrow small { display: block; color: var(--muted); font-size: 12.5px; }
+#drawer textarea { min-height: 120px; }
 #drawer .switchrow { padding-top: 0; }
 .panel > .tablewrap:first-child { margin-top: 26px; }
 button.iconbtn.corner { position: absolute; top: -18px; right: -10px; z-index: 3; box-shadow: var(--shadow); }
@@ -415,15 +419,37 @@ function tsText(c) {
 const KEEP = Symbol('keep');
 /* Oben links ✕ = abbrechen/schließen, oben rechts ✓ = speichern und schließen.
    Weitere Aktionen (z. B. Löschen) bleiben als Knöpfe unten. */
+/* Aufklapp-Variante der Einstellungs-Leiste: Ist dlgHost gesetzt, wird das nächste Fenster
+   nicht als eigenes Fenster geöffnet, sondern an dieser Stelle eingebettet. */
+let dlgHost = null;
+const inlineCancels = new Set();
 function dlg(title, content, actions) {
   return new Promise(resolve => {
-    const d = h('dialog', { class: 'dlg' });
-    const close = v => { d.close(); d.remove(); resolve(v); };
-    const run = async a => { const v = a.fn ? await a.fn() : a.value; if (v !== KEEP) close(v); };
+    const host = dlgHost; dlgHost = null;
     const primary = actions.find(a => a.primary);
     const isCancel = a => !a.primary && !a.fn && !a.cls && (a.value == null || a.value === false);
     const cancel = actions.find(isCancel);
     const cancelVal = cancel ? cancel.value : null;
+    if (host) {
+      let done = false;
+      const cancelFn = () => close(cancelVal);
+      const close = v => {
+        if (done) return; done = true;
+        inlineCancels.delete(cancelFn); host.cancel = null; host.replaceChildren();
+        if (host.onclose) host.onclose();
+        resolve(v);
+      };
+      const run = async a => { const v = a.fn ? await a.fn() : a.value; if (v !== KEEP) close(v); };
+      const btns = actions.filter(a => !isCancel(a));
+      host.replaceChildren(h('form', { class: 'inline', onsubmit: e => { e.preventDefault(); if (primary) run(primary); } }, content,
+        btns.length ? h('div', { class: 'dlg-actions' }, btns.map(a =>
+          h('button', { type: a.primary ? 'submit' : 'button', class: a.cls ? a.cls.replace('left', '').trim() : (a.primary ? 'primary' : ''), onclick: a.primary ? null : () => run(a) }, a.label))) : null));
+      host.cancel = cancelFn; inlineCancels.add(cancelFn);
+      return;
+    }
+    const d = h('dialog', { class: 'dlg' });
+    const close = v => { d.close(); d.remove(); resolve(v); };
+    const run = async a => { const v = a.fn ? await a.fn() : a.value; if (v !== KEEP) close(v); };
     const asCheck = primary && !primary.button;
     const extras = actions.filter(a => !isCancel(a) && !(a === primary && asCheck));
     const x = iconBtn('close', cancel ? cancel.label : 'Schließen', () => close(cancelVal));
@@ -737,7 +763,7 @@ async function addTab() {
   cls.tabs.push(t); S.ui.tabId = t.id; save(); render();
 }
 async function renameTab(tab) {
-  const name = await askText('Reiter umbenennen', 'Name', tab.name);
+  const name = await askText('Reiter umbenennen', 'Name', tab.name, 'Speichern');
   if (name) { tab.name = name; tab.m = nowIso(); save(); render(); }
 }
 async function deleteTab(cls, tab) {
@@ -844,41 +870,69 @@ async function calcSettings() {
 ICONS.left = '<polyline points="15 18 9 12 15 6"/>';
 ICONS.right = '<polyline points="9 18 15 12 9 6"/>';
 let drawerOpen = false;
+/* Zwei Varianten zum Ausprobieren (Schalter in der Leiste, je Gerät gemerkt):
+   aufklappen = jede Option öffnet sich direkt in der Leiste; aus = jede Option öffnet ein eigenes Fenster. */
+const foldMode = () => S.ui.fold !== false;
 function renderDrawer() {
+  inlineCancels.forEach(c => c());
   const cls = curClass(), tab = cls && cls.tabs.find(t => t.id === S.ui.tabId);
-  const act = (label, fn, danger) => h('button', { class: 'row' + (danger ? ' danger' : ''), onclick: () => { toggleDrawer(false); fn(); } }, label);
+  const folding = foldMode();
   const sec = t => h('h3', { class: 'sec' }, t);
   const calc = calcFields();
-  // Aufklappbarer Bereich: Knopf zeigt oder verbirgt den Inhalt darunter.
+  // Aufklappbarer Bereich mit festem Inhalt.
   const fold = (label, content) => {
     const body = h('div', { class: 'fold-body', hidden: true }, content);
     const btn = h('button', { class: 'row fold', 'aria-expanded': 'false' }, label);
     btn.addEventListener('click', () => { const open = body.hidden; body.hidden = !open; btn.setAttribute('aria-expanded', String(open)); });
     return [btn, body];
   };
+  // Eine Option: entweder klappt ihr Fenster-Inhalt in der Leiste auf, oder sie öffnet ein eigenes Fenster.
+  const act = (label, fn, danger, btn) => {
+    btn = btn || h('button', {}, label);
+    btn.classList.add('row'); if (danger) btn.classList.add('danger');
+    if (!folding) { btn.addEventListener('click', () => { toggleDrawer(false); fn(); }); return [btn]; }
+    const body = h('div', { class: 'fold-body', hidden: true });
+    btn.classList.add('fold'); btn.setAttribute('aria-expanded', 'false');
+    body.onclose = () => {
+      body.hidden = true; btn.setAttribute('aria-expanded', 'false');
+      // Danach die Leiste auffrischen (z. B. neuer Name), sobald die Aktion fertig ist.
+      setTimeout(() => { if (drawerOpen && !inlineCancels.size) renderDrawer(); }, 60);
+    };
+    btn.addEventListener('click', () => {
+      if (!body.hidden) { if (body.cancel) body.cancel(); else body.onclose(); return; }
+      body.hidden = false; btn.setAttribute('aria-expanded', 'true');
+      dlgHost = body; fn(); dlgHost = null;
+      const f = body.querySelector('input[type=text]'); if (f) { f.focus(); f.select(); }
+    });
+    return [btn, body];
+  };
+  const syncBtn = h('button', { class: 'syncrow', id: 'syncRow' }, h('span', {}, 'Automatischer Abgleich', h('small', {})), h('span', { class: 'st' }));
+  const modeSwitch = h('label', { class: 'switchrow' }, h('span', {}, 'Optionen hier aufklappen', h('small', {}, 'Aus: jede Option öffnet ein eigenes Fenster')),
+    h('input', { type: 'checkbox', class: 'switch', role: 'switch', checked: folding, onchange: e => { S.ui.fold = e.target.checked; saveLocal(); renderDrawer(); } }));
   document.getElementById('drawer').replaceChildren(...[
     h('h2', {}, 'Einstellungen'),
     tsToggle(),
     ...fold('Tendenz der Note', calc.tendEl),
     ...fold('Berechnung der Jahresnote', calc.weightEl),
     tab ? sec(tab.name) : null,
-    tab && tab.type === 'grades' ? act('Gewichtung der Bereiche', () => editCategories(tab)) : null,
-    tab ? act(tab.name + ' umbenennen', () => renameTab(tab)) : null,
-    tab ? act(tab.name + ' löschen', () => deleteTab(cls, tab), true) : null,
+    ...(tab && tab.type === 'grades' ? act('Gewichtung der Bereiche', () => editCategories(tab)) : []),
+    ...(tab ? act(tab.name + ' umbenennen', () => renameTab(tab)) : []),
+    ...(tab ? act(tab.name + ' löschen', () => deleteTab(cls, tab), true) : []),
     cls ? sec('Klasse ' + cls.name) : null,
-    cls ? act(cls.name + ' umbenennen', () => renameClass(cls)) : null,
-    cls ? act(cls.name + ' löschen', () => deleteClass(cls), true) : null,
+    ...(cls ? act(cls.name + ' umbenennen', () => renameClass(cls)) : []),
+    ...(cls ? act(cls.name + ' löschen', () => deleteClass(cls), true) : []),
     sec('Allgemein'),
-    act('Name in der Begrüßung', editName),
-    act('Sicherung', backupDialog),
-    h('button', { class: 'row syncrow', id: 'syncRow', onclick: () => { toggleDrawer(false); syncDialog(); } },
-      h('span', {}, 'Automatischer Abgleich', h('small', {})), h('span', { class: 'st' }))].filter(Boolean));
+    ...act('Name in der Begrüßung', editName),
+    ...act('Sicherung', backupDialog),
+    ...act('Automatischer Abgleich', syncDialog, false, syncBtn),
+    sec('Darstellung der Leiste'),
+    modeSwitch].filter(Boolean));
   setSync(syncState, syncMsg);
 }
 function toggleDrawer(open) {
   drawerOpen = open == null ? !drawerOpen : open;
   const tabBtn = document.getElementById('drawerTab');
-  if (drawerOpen) renderDrawer();
+  if (drawerOpen) renderDrawer(); else inlineCancels.forEach(c => c());
   document.body.classList.toggle('drawer-open', drawerOpen);
   tabBtn.innerHTML = svgIcon(ICONS[drawerOpen ? 'right' : 'left'], 22);
   tabBtn.setAttribute('aria-expanded', String(drawerOpen));
