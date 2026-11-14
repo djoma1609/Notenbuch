@@ -753,6 +753,7 @@ async function tabSettings(cls, tab) {
   const actions = [{ label: 'Berechnung der Jahresnote', value: 'calc' }];
   if (tab.type === 'grades') actions.push({ label: 'Gewichtung der Bereiche', value: 'weights' });
   actions.push({ label: tab.name + ' umbenennen', value: 'rename' });
+  actions.push({ label: cls.name + ' umbenennen', value: 'renameClass' });
   actions.push({ label: tab.name + ' löschen', cls: 'danger', value: 'del' });
   actions.push({ label: 'Fertig', primary: true, value: null });
   actions.stack = true;
@@ -762,6 +763,7 @@ async function tabSettings(cls, tab) {
   if (r === 'calc') { await calcSettings(); return tabSettings(cls, tab); }
   if (r === 'weights') editCategories(tab);
   if (r === 'rename') renameTab(tab);
+  if (r === 'renameClass') renameClass(cls);
   if (r === 'del') deleteTab(cls, tab);
 }
 /* Berechnung: Wert der Tendenzen und Gewichte der Halbjahre (gilt für alle Fächer). */
