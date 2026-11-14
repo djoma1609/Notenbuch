@@ -742,18 +742,18 @@ async function renameClass(cls) {
   if (r === 'del') return deleteClass(cls);
   if (r === 'ok') { cls.name = inp.value.trim(); cls.m = nowIso(); save(); render(); }
 }
-/* Klasse löschen: zur Sicherheit muss der Name der Klasse eingetippt werden. */
-async function deleteClass(cls) {
-  const inp = h('input', { type: 'text', autocomplete: 'off', autocapitalize: 'off', 'aria-label': 'Name der Klasse zur Bestätigung' });
+/* Löschen mit Sicherheitsabfrage: Der Name muss eingetippt werden (Groß-/Kleinschreibung egal). */
+function confirmByName(title, text, name) {
+  const inp = h('input', { type: 'text', autocomplete: 'off', autocapitalize: 'off', 'aria-label': 'Name zur Bestätigung' });
   const msg = h('p', { class: 'hint' });
-  const same = () => inp.value.trim().toLowerCase() === cls.name.trim().toLowerCase();
-  const ok = await dlg('Klasse löschen', h('div', {},
-    h('p', {}, 'Klasse „' + cls.name + '“ mit allen Schülern, Noten und Listen endgültig löschen?'),
-    field('Zum Löschen ' + cls.name + ' eintragen:', inp), msg), [
+  const same = () => inp.value.trim().toLowerCase() === name.trim().toLowerCase();
+  return dlg(title, h('div', {}, h('p', {}, text), field('Zum Löschen ' + name + ' eintragen:', inp), msg), [
     { label: 'Abbrechen', value: false },
-    { label: 'Löschen', cls: 'danger', fn: () => { if (same()) return true; msg.textContent = 'Der Name stimmt nicht. Bitte genau „' + cls.name + '“ eintragen.'; inp.focus(); return KEEP; } }
+    { label: 'Löschen', cls: 'danger', fn: () => { if (same()) return true; msg.textContent = 'Der Name stimmt nicht. Bitte genau „' + name + '“ eintragen.'; inp.focus(); return KEEP; } }
   ]);
-  if (!ok) return;
+}
+async function deleteClass(cls) {
+  if (!await confirmByName('Klasse löschen', 'Klasse „' + cls.name + '“ mit allen Schülern, Noten und Listen endgültig löschen?', cls.name)) return;
   S.classes = S.classes.filter(c => c !== cls); markDeleted(cls.id); save(); render();
 }
 async function addTab() {
@@ -778,7 +778,7 @@ async function renameTab(tab) {
   if (name) { tab.name = name; tab.m = nowIso(); save(); render(); }
 }
 async function deleteTab(cls, tab) {
-  if (!await confirmDlg('Reiter löschen', 'Reiter „' + tab.name + '“ mit allen Einträgen endgültig löschen?')) return;
+  if (!await confirmByName('Reiter löschen', 'Reiter „' + tab.name + '“ mit allen Einträgen endgültig löschen?', tab.name)) return;
   cls.tabs = cls.tabs.filter(t => t !== tab); markDeleted(tab.id); S.ui.tabId = 'students'; save(); render();
 }
 function tsToggle() {
