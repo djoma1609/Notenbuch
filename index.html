@@ -840,7 +840,7 @@ function renderDrawer() {
   const cls = curClass(), tab = cls && cls.tabs.find(t => t.id === S.ui.tabId);
   const act = (label, fn, danger) => h('button', { class: 'row' + (danger ? ' danger' : ''), onclick: () => { toggleDrawer(false); fn(); } }, label);
   const sec = t => h('h3', { class: 'sec' }, t);
-  document.getElementById('drawer').replaceChildren(
+  document.getElementById('drawer').replaceChildren(...[
     h('h2', {}, 'Einstellungen'),
     sec('Grundlegende Einstellungen für alle Fächer'), tsToggle(), calcFields().el,
     tab ? sec(tab.name) : null,
@@ -853,7 +853,7 @@ function renderDrawer() {
     sec('Allgemein'),
     act('Name in der Begrüßung', editName),
     act('Sicherung', backupDialog),
-    act('Automatischer Abgleich', syncDialog));
+    act('Automatischer Abgleich', syncDialog)].filter(Boolean));
 }
 function toggleDrawer(open) {
   drawerOpen = open == null ? !drawerOpen : open;
@@ -1052,7 +1052,6 @@ function renderGrades(panel, cls, tab) {
       [[1, '1. Halbjahr', '1. Hj'], [2, '2. Halbjahr', '2. Hj'], ['J', 'Jahr', 'Jahr']].map(([v, label, short]) =>
         h('button', { class: v === view ? 'active' : '', 'aria-pressed': String(v === view), 'aria-label': label, onclick: () => setView(v) },
           h('span', { class: 'wide' }, label), h('span', { class: 'narrow' }, short)))),
-    iconBtn('gear', 'Einstellungen', () => tabSettings(cls, tab)),
     h('span', { class: 'grow' }),
     iconBtn('export', 'CSV-Export', () => exportCsv(cls, tab, view))));
   if (!cls.students.length) { panel.append(h('div', { class: 'empty' }, 'Zuerst im Reiter „Schüler“ Namen anlegen oder importieren.')); return; }
@@ -1187,8 +1186,6 @@ function exportCsv(cls, tab, view) {
 
 /* ---------- Listen (Rückläufer, Notizen) ---------- */
 function renderList(panel, cls, tab) {
-  panel.append(h('div', { class: 'bar' },
-    iconBtn('gear', 'Einstellungen', () => tabSettings(cls, tab))));
   if (!cls.students.length) { panel.append(h('div', { class: 'empty' }, 'Zuerst im Reiter „Schüler“ Namen anlegen oder importieren.')); return; }
   if (!tab.columns.length) panel.append(h('p', { class: 'hint' }, 'Mit dem „+“ an der Tabellenecke z. B. einen Zettel zum Abhaken oder eine Notizspalte anlegen.'));
 
