@@ -52,6 +52,17 @@ header.top button:hover { border-color: var(--accent); }
 #greet mask tspan { fill: #fff; fill-opacity: 0; stroke: #fff; stroke-linecap: round; stroke-linejoin: round; }
 @keyframes penstroke { to { stroke-dashoffset: 0; } }
 @keyframes penfill { to { fill-opacity: 1; } }
+/* Reiter verschieben */
+.tabs.reorder button[data-id] { touch-action: none; cursor: grab; opacity: 1 !important; outline: 2px dashed var(--accent); outline-offset: 1px; animation: wiggle .28s ease-in-out infinite alternate; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.tabs.reorder button[data-id]:nth-child(even) { animation-direction: alternate-reverse; }
+.tabs.reorder button.dragging { animation: none; position: relative; z-index: 5; cursor: grabbing; box-shadow: 0 8px 18px rgba(0, 0, 0, .22); }
+.tabs button.done { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+@keyframes wiggle { from { rotate: -1.6deg; } to { rotate: 1.6deg; } }
+/* Zeile hervorheben / Einzelansicht */
+td.name, td.avg { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+tbody tr.hl > td, tbody tr.hl:hover > td, tbody tr.hl > td.note { background: var(--p2); }
+.solo { display: flex; align-items: center; gap: 10px; background: var(--p2); border-radius: 12px; padding: 8px 12px; margin: 0 0 12px; font-weight: 600; }
+.solo span { flex: 1; }
 /* Jahreszeiten-Hintergrund: Aquarell und gemalte Motive, nach unten auslaufend */
 #season { position: absolute; top: 0; left: 0; right: 0; height: 440px; overflow: hidden; pointer-events: none; z-index: 0; }
 #season .wash { position: absolute; inset: -60px -50px auto -50px; height: 380px; opacity: 0; filter: url(#watery); animation: wash 1.6s ease-out .1s forwards;
@@ -159,8 +170,19 @@ ul.students li .nr { color: var(--accent); background: var(--soft); min-width: 2
 ul.students li .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; }
 button.iconbtn { width: 40px; height: 40px; padding: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: var(--accent); flex: none; }
 button.hold { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
-.checkrow { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
-.checkrow input { width: 20px; height: 20px; accent-color: var(--accent); }
+.tabs.reorder button[data-id] { transition: none; }
+#classTabs button { padding: 5px 15px; }
+/* Schalter wie bei Apple: grau = aus, grün = an */
+.switchrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0 12px; cursor: pointer; }
+input.switch { -webkit-appearance: none; appearance: none; flex: none; width: 51px; height: 31px; margin: 0; border: none; border-radius: 999px; background: #d3d0ca; position: relative; cursor: pointer; transition: background-color .2s; }
+input.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .3); transition: transform .2s; }
+input.switch:checked { background: #34c759; }
+input.switch:checked::after { transform: translateX(20px); }
+dialog.dlg h3.sec { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin: 4px 0 8px; }
+dialog.dlg .dlg-actions + h3.sec, dialog.dlg h3.sec.low { margin-top: 18px; }
+.yearw { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+.yearw label { display: flex; align-items: center; gap: 8px; }
+.yearw input.num { width: 72px; text-align: center; }
 button.icon { min-width: 34px; padding-left: 0; padding-right: 0; }
 button:disabled { opacity: .35; cursor: default; }
 .narrow { display: none; }
@@ -299,18 +321,28 @@ function mergeState(a, b) {
     return out;
   };
   const out = Object.assign(emptyState(), a, { deleted });
-  out.classes = mergeList(a.classes, b.classes || [], deleted, (x, y) => {
+  const mergeClass = (x, y) => {
     const top = newer(x, y);
-    // Reihenfolge der Schüler: Es gilt die Seite, auf der zuletzt sortiert wurde.
+    // Reihenfolge der Schüler und der Reiter: Es gilt die Seite, auf der zuletzt sortiert wurde.
     const yFirst = (y.orderM || '') > (x.orderM || '');
-    return { id: x.id, name: top.name, m: top.m, orderM: yFirst ? y.orderM : x.orderM,
+    const yTabs = (y.tabOrderM || '') > (x.tabOrderM || '');
+    const c = { id: x.id, name: top.name, m: top.m, orderM: yFirst ? y.orderM : x.orderM,
       students: yFirst ? mergeList(y.students, x.students, deleted, mergeStudent) : mergeList(x.students, y.students, deleted, mergeStudent),
-      tabs: mergeList(x.tabs, y.tabs, deleted, (p, q) => mergeTab(p, q, deleted)) };
-  });
+      tabs: yTabs ? mergeList(y.tabs, x.tabs, deleted, (q, p) => mergeTab(p, q, deleted)) : mergeList(x.tabs, y.tabs, deleted, (p, q) => mergeTab(p, q, deleted)) };
+    const tm = yTabs ? y.tabOrderM : x.tabOrderM;
+    if (tm) c.tabOrderM = tm;
+    return c;
+  };
+  // Reihenfolge der Klassen: ebenfalls die zuletzt sortierte Seite.
+  const bClasses = b.classes || [], bFirst = (b.classOrderM || '') > (a.classOrderM || '');
+  out.classes = bFirst ? mergeList(bClasses, a.classes, deleted, (y, x) => mergeClass(x, y)) : mergeList(a.classes, bClasses, deleted, mergeClass);
+  const cm = bFirst ? b.classOrderM : a.classOrderM;
+  if (cm) out.classOrderM = cm; else delete out.classOrderM;
   const sNew = newer(a.settings || {}, b.settings || {});
   out.settings = { ...a.settings, m: sNew.m };
   if (sNew.tendency != null) out.settings.tendency = sNew.tendency;
   if (sNew.name != null) out.settings.name = sNew.name;
+  if (sNew.halfWeights) out.settings.halfWeights = sNew.halfWeights;
   if ((b.lastBackup || '') > (a.lastBackup || '')) out.lastBackup = b.lastBackup;
   return out;
 }
@@ -369,6 +401,7 @@ function dlg(title, content, actions) {
     if (asCheck) { ok = iconBtn('check', primary.label); ok.type = 'submit'; ok.classList.add('primary'); }
     const form = h('form', { onsubmit: e => { e.preventDefault(); if (primary) run(primary); } },
       h('div', { class: 'dlg-head' }, x, h('h2', {}, title), ok), content,
+      actions.heading ? h('h3', { class: 'sec low' }, actions.heading) : null,
       extras.length ? h('div', { class: 'dlg-actions' + (actions.stack ? ' stack' : '') }, extras.map(a =>
         h('button', { type: a.primary ? 'submit' : 'button', class: a.cls || (a.primary ? 'primary' : ''), onclick: a.primary ? null : () => run(a) }, a.label))) : null);
     d.append(form);
@@ -408,7 +441,11 @@ function gradeVal(v) {
    (Standard: Allgemeine Leistungen und Klassenarbeiten je zur Hälfte).
    Jahresnote: je Bereich (1. Halbjahr × 1 + 2. Halbjahr × 2) ÷ 3, danach das Mittel der Bereiche.
    Gerechnet wird durchgehend mit ungerundeten Werten. */
-const HALF_WEIGHT = { 1: 1, 2: 2 };
+/* Gewichte der Halbjahre für die Jahresnote; in den Einstellungen änderbar (Standard 1 : 2). */
+function halfW() {
+  const w = S.settings.halfWeights;
+  return Array.isArray(w) && w[0] >= 0 && w[1] >= 0 && w[0] + w[1] > 0 ? { 1: w[0], 2: w[1] } : { 1: 1, 2: 2 };
+}
 const colHalf = col => col.half === 2 ? 2 : 1;
 function catAvg(tab, sid, catId, half) {
   let s = 0, f = 0;
@@ -423,7 +460,8 @@ function catYear(tab, sid, catId) {
   const a = catAvg(tab, sid, catId, 1), b = catAvg(tab, sid, catId, 2);
   if (a == null) return b;
   if (b == null) return a;
-  return (a * HALF_WEIGHT[1] + b * HALF_WEIGHT[2]) / (HALF_WEIGHT[1] + HALF_WEIGHT[2]);
+  const W = halfW();
+  return (a * W[1] + b * W[2]) / (W[1] + W[2]);
 }
 /* view: 1, 2 (Halbjahr) oder 'J' (Jahr) */
 function calcStudent(tab, sid, view) {
@@ -461,14 +499,113 @@ function colAvg(tab, col, students) {
 }
 
 /* ---------- Rendering ---------- */
+/* ---------- Reihenfolge ändern & Zeilenansicht ---------- */
+let reorder = null;                         // 'classes' | 'tabs' | null: Reiter lassen sich gerade verschieben
+const rowView = { hl: null, solo: null };   // hervorgehobene bzw. einzeln gezeigte Schülerzeile (nur Ansicht, wird nicht gespeichert)
+
+/* Reiter mit data-id per Ziehen umsortieren; commit bekommt die neue Reihenfolge der IDs. */
+function makeSortable(nav, commit) {
+  nav.querySelectorAll('button[data-id]').forEach(pill => {
+    pill.addEventListener('pointerdown', e => {
+      if (e.button) return;
+      e.preventDefault();
+      let startX = e.clientX, moved = false;
+      try { pill.setPointerCapture(e.pointerId); } catch (err) {}
+      pill.classList.add('dragging');
+      const move = ev => {
+        let dx = ev.clientX - startX;
+        pill.style.transform = 'translateX(' + dx + 'px)';
+        const r = pill.getBoundingClientRect(), mid = r.left + r.width / 2;
+        const prev = pill.previousElementSibling, next = pill.nextElementSibling;
+        let hit = false, before = null;
+        if (next && next.dataset.id) { const n = next.getBoundingClientRect(); if (mid > n.left + n.width / 2) { hit = true; before = next.nextElementSibling; } }
+        if (!hit && prev && prev.dataset.id) { const p = prev.getBoundingClientRect(); if (mid < p.left + p.width / 2) { hit = true; before = prev; } }
+        if (!hit) return;
+        const visual = r.left;
+        pill.style.transform = '';
+        nav.insertBefore(pill, before);
+        dx = visual - pill.getBoundingClientRect().left; startX = ev.clientX - dx;
+        pill.style.transform = 'translateX(' + dx + 'px)';
+        moved = true;
+      };
+      const up = () => {
+        pill.removeEventListener('pointermove', move); pill.removeEventListener('pointerup', up); pill.removeEventListener('pointercancel', up);
+        pill.style.transform = ''; pill.classList.remove('dragging');
+        if (moved) commit([...nav.querySelectorAll('button[data-id]')].map(b => b.dataset.id));
+      };
+      pill.addEventListener('pointermove', move); pill.addEventListener('pointerup', up); pill.addEventListener('pointercancel', up);
+    });
+  });
+}
+const doneBtn = () => h('button', { class: 'done', onclick: () => { reorder = null; render(); } }, '✓ Fertig');
+const startReorder = kind => { reorder = kind; render(); };
+
+/* Den nächsten Klick schlucken (z. B. beim Loslassen nach langem Drücken). */
+function eatNextClick() {
+  const eat = ev => { ev.stopPropagation(); ev.preventDefault(); };
+  document.addEventListener('click', eat, { capture: true, once: true });
+  setTimeout(() => document.removeEventListener('click', eat, true), 500);
+}
+/* Lange auf eine Zeile drücken: erst farbig hervorheben, bei noch längerem Drücken nur diese Zeile zeigen. */
+function rowPress(tr, st) {
+  if (rowView.hl === st.id) tr.classList.add('hl');
+  tr.addEventListener('pointerdown', e => {
+    if (e.button || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.closest('button.check')) return;
+    const x = e.clientX, y = e.clientY;
+    let stage = 0;
+    const stop = () => {
+      clearTimeout(t1); clearTimeout(t2);
+      document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up); document.removeEventListener('pointercancel', stop);
+    };
+    const up = () => { stop(); if (stage) eatNextClick(); };
+    const move = ev => { if (Math.hypot(ev.clientX - x, ev.clientY - y) > 10) stop(); };
+    const t1 = setTimeout(() => {
+      stage = 1;
+      const on = rowView.hl !== st.id;
+      tr.parentNode.querySelectorAll('tr.hl').forEach(r => r.classList.remove('hl'));
+      rowView.hl = on ? st.id : null; tr.classList.toggle('hl', on);
+    }, 500);
+    const t2 = setTimeout(() => {
+      stop();
+      rowView.solo = st.id; rowView.hl = null;
+      document.addEventListener('pointerup', eatNextClick, { once: true });
+      render();
+    }, 1700);
+    document.addEventListener('pointermove', move); document.addEventListener('pointerup', up); document.addEventListener('pointercancel', stop);
+  });
+}
+/* Liefert die anzuzeigenden Schüler: alle oder nur den einzeln gewählten. */
+function shownStudents(cls) {
+  const st = rowView.solo && cls.students.find(s => s.id === rowView.solo);
+  if (!st) { rowView.solo = null; return cls.students; }
+  return [st];
+}
+function soloBanner(cls) {
+  if (!rowView.solo) return null;
+  const st = cls.students.find(s => s.id === rowView.solo);
+  return h('div', { class: 'solo' }, h('span', {}, 'Einzelansicht: ' + (st ? st.name : '')),
+    h('button', { class: 'small', onclick: () => { rowView.solo = null; render(); } }, 'Alle anzeigen'));
+}
+
 function render() {
   if (!curClass()) S.ui.classId = S.classes[0] ? S.classes[0].id : null;
   const cls = curClass();
   const ct = document.getElementById('classTabs');
+  const sortC = reorder === 'classes', sortT = reorder === 'tabs';
+  // Kurz tippen = öffnen, lange drücken = umbenennen. Im Verschiebe-Modus lassen sich die Reiter nur ziehen.
+  const pill = (item, active, sorting, tap, hold) => {
+    const b = h('button', { class: active ? 'active' : '', 'data-id': item.id, title: sorting ? 'Ziehen zum Verschieben' : 'Lange drücken zum Umbenennen' }, item.name);
+    return sorting ? b : longPress(b, tap, hold);
+  };
+  ct.className = 'tabs' + (sortC ? ' reorder' : '');
   ct.replaceChildren(
-    ...S.classes.map(c => longPress(h('button', { class: c.id === S.ui.classId ? 'active' : '', title: 'Lange drücken zum Umbenennen' }, c.name),
-      () => { S.ui.classId = c.id; S.ui.tabId = 'students'; save(); render(); }, () => renameClass(c))),
-    h('button', { class: 'add', onclick: addClass }, '+ Klasse'));
+    ...S.classes.map(c => pill(c, c.id === S.ui.classId, sortC,
+      () => { S.ui.classId = c.id; S.ui.tabId = 'students'; rowView.hl = rowView.solo = null; save(); render(); }, () => renameClass(c))),
+    sortC ? doneBtn() : longPress(h('button', { class: 'add', title: 'Lange drücken: Reihenfolge der Klassen ändern' }, '+ Klasse'), addClass, () => startReorder('classes')));
+  if (sortC) makeSortable(ct, ids => {
+    S.classes = ids.map(id => S.classes.find(c => c.id === id)).filter(Boolean);
+    S.classOrderM = nowIso(); save();
+  });
   const main = document.getElementById('main');
   if (!cls) {
     main.replaceChildren(h('div', { class: 'empty' },
@@ -479,11 +616,14 @@ function render() {
   }
   if (S.ui.tabId !== 'students' && !cls.tabs.find(t => t.id === S.ui.tabId)) S.ui.tabId = 'students';
   const go = id => { S.ui.tabId = id; save(); render(); };
-  const sub = h('nav', { class: 'tabs sub' },
+  const sub = h('nav', { class: 'tabs sub' + (sortT ? ' reorder' : '') },
     h('button', { class: S.ui.tabId === 'students' ? 'active' : '', onclick: () => go('students') }, 'Schüler (' + cls.students.length + ')'),
-    cls.tabs.map(t => longPress(h('button', { class: t.id === S.ui.tabId ? 'active' : '', title: 'Lange drücken zum Umbenennen' }, t.name),
-      () => go(t.id), () => renameTab(t))),
-    h('button', { class: 'add', onclick: addTab }, '+ Reiter'));
+    cls.tabs.map(t => pill(t, t.id === S.ui.tabId, sortT, () => go(t.id), () => renameTab(t))),
+    sortT ? doneBtn() : longPress(h('button', { class: 'add', title: 'Lange drücken: Reihenfolge der Reiter ändern' }, '+ Reiter'), addTab, () => startReorder('tabs')));
+  if (sortT) makeSortable(sub, ids => {
+    cls.tabs = ids.map(id => cls.tabs.find(t => t.id === id)).filter(Boolean);
+    cls.tabOrderM = nowIso(); save();
+  });
   const panel = h('section', { class: 'panel' });
   const tab = cls.tabs.find(t => t.id === S.ui.tabId);
   if (!tab) renderStudents(panel, cls);
@@ -569,7 +709,8 @@ async function deleteTab(cls, tab) {
   cls.tabs = cls.tabs.filter(t => t !== tab); markDeleted(tab.id); S.ui.tabId = 'students'; save(); render();
 }
 function tsToggle() {
-  return h('label', { class: 'checkrow' }, h('input', { type: 'checkbox', checked: S.settings.showTs, onchange: e => { S.settings.showTs = e.target.checked; save(); render(); } }), 'Zeitstempel anzeigen');
+  return h('label', { class: 'switchrow' }, h('span', {}, 'Zeitstempel anzeigen'),
+    h('input', { type: 'checkbox', class: 'switch', role: 'switch', checked: S.settings.showTs, onchange: e => { S.settings.showTs = e.target.checked; save(); render(); } }));
 }
 /* Kurz tippen = öffnen, lange drücken (oder Rechtsklick) = umbenennen. */
 function longPress(el, onTap, onHold) {
@@ -607,15 +748,42 @@ function iconBtn(name, label, onclick) {
   b.innerHTML = svgIcon(ICONS[name]);
   return b;
 }
-/* Zahnrad: Einstellungen eines Reiters (Gewichtung, Zeitstempel, Löschen). */
+/* Zahnrad: oben die Grundeinstellungen für alle Fächer, darunter die Aktionen für diesen Reiter. */
 async function tabSettings(cls, tab) {
+  const tend = h('select', { value: String(S.settings.tendency) },
+    h('option', { value: '0.25' }, '0,25 (2+ = 1,75 · 2− = 2,25)'),
+    h('option', { value: '0.33' }, '0,33 (2+ = 1,67 · 2− = 2,33)'),
+    h('option', { value: '0' }, 'Tendenzen nicht einrechnen'));
+  tend.addEventListener('change', () => { S.settings.tendency = +tend.value; S.settings.m = nowIso(); save(); render(); });
+  const w = halfW();
+  const num = v => h('input', { type: 'number', class: 'num', min: '0', step: '0.5', inputmode: 'decimal', value: v });
+  const w1 = num(w[1]), w2 = num(w[2]);
+  const formula = h('p', { class: 'hint' });
+  const showFormula = () => {
+    const c = halfW(), f = n => String(n).replace('.', ',');
+    formula.textContent = 'Jahr je Bereich = (1. Halbjahr × ' + f(c[1]) + ' + 2. Halbjahr × ' + f(c[2]) + ') ÷ ' + f(c[1] + c[2]);
+  };
+  const saveW = () => {
+    const a = +w1.value, b = +w2.value;
+    if (!(a >= 0 && b >= 0 && a + b > 0)) { formula.textContent = 'Bitte zwei Zahlen ab 0 eingeben, mindestens eine größer als 0.'; return; }
+    S.settings.halfWeights = [a, b]; S.settings.m = nowIso(); save(); render(); showFormula();
+  };
+  w1.addEventListener('change', saveW); w2.addEventListener('change', saveW);
+  showFormula();
   const actions = [];
-  if (tab.type === 'grades') actions.push({ label: 'Gewichtung', value: 'weights' });
+  if (tab.type === 'grades') actions.push({ label: 'Gewichtung der Bereiche', value: 'weights' });
   actions.push({ label: 'Reiter umbenennen', value: 'rename' });
   actions.push({ label: 'Reiter löschen', cls: 'danger', value: 'del' });
   actions.push({ label: 'Fertig', primary: true, value: null });
   actions.stack = true;
-  const r = await dlg('Einstellungen: ' + tab.name, h('div', {}, tsToggle()), actions);
+  actions.heading = (tab.type === 'grades' ? 'Dieses Fach: ' : 'Diese Liste: ') + tab.name;
+  const r = await dlg('Einstellungen', h('div', {},
+    h('h3', { class: 'sec' }, 'Grundlegende Einstellungen für alle Fächer'),
+    tsToggle(),
+    field('Wert von + und − bei der Berechnung', tend),
+    h('div', { class: 'field' }, h('span', {}, 'Berechnung der Jahresnote'),
+      h('div', { class: 'yearw' }, h('label', {}, '1. Halbjahr ×', w1), h('label', {}, '2. Halbjahr ×', w2)),
+      formula)), actions);
   if (r === 'weights') editCategories(tab);
   if (r === 'rename') renameTab(tab);
   if (r === 'del') deleteTab(cls, tab);
@@ -810,7 +978,6 @@ function renderGrades(panel, cls, tab) {
     iconBtn('gear', 'Einstellungen', () => tabSettings(cls, tab)),
     h('span', { class: 'grow' }),
     iconBtn('export', 'CSV-Export', () => exportCsv(cls, tab, view))));
-  if (view === 'J') panel.append(h('p', { class: 'hint' }, 'Jahr: je Bereich (1. Halbjahr × 1 + 2. Halbjahr × 2) ÷ 3'));
   if (!cls.students.length) { panel.append(h('div', { class: 'empty' }, 'Zuerst im Reiter „Schüler“ Namen anlegen oder importieren.')); return; }
   if (view !== 'J' && !cols.length) panel.append(h('p', { class: 'hint' }, 'Im ' + view + '. Halbjahr gibt es noch keine Leistung. Mit dem „+“ rechts eine Spalte anlegen (z. B. Klassenarbeit 1). Noten als 1–6 eingeben, optional mit + oder − (z. B. 2+).'));
 
@@ -825,7 +992,8 @@ function renderGrades(panel, cls, tab) {
     cols.map(col => h('th', {}, h('button', { class: 'colbtn', title: 'Leistung bearbeiten', onclick: () => editColumn(tab, col, view) },
       col.name, h('small', {}, catName(col.catId) + (col.factor !== 1 ? ' · ×' + String(col.factor).replace('.', ',') : ''))))),
     defs.map(d => h('th', { class: d.final ? 'final' : 'calc' }, d.label, d.sub ? h('small', {}, d.sub) : null))));
-  const tbody = h('tbody', {}, cls.students.map(st => {
+  const shown = shownStudents(cls);
+  const tbody = h('tbody', {}, shown.map(st => {
     const defTds = defs.map(d => h('td', { class: d.final ? 'avg note' : 'avg calc' }));
     const refresh = () => defs.forEach((d, i) => { defTds[i].textContent = fmtOpt(d.get(st.id)); });
     refresh();
@@ -859,7 +1027,9 @@ function renderGrades(panel, cls, tab) {
   refreshFoot();
   const plus = view === 'J' ? null : iconBtn('plus', 'Neue Leistung', () => editColumn(tab, null, view));
   if (plus) plus.classList.add('corner');
-  panel.append(h('div', { class: 'tablewrap' }, h('div', { class: 'scroll' + (S.settings.showTs ? '' : ' hide-ts') }, h('table', {}, thead, tbody, tfoot)), plus));
+  [...tbody.rows].forEach((tr, i) => rowPress(tr, shown[i]));
+  { const banner = soloBanner(cls); if (banner) panel.append(banner); }
+  panel.append(h('div', { class: 'tablewrap' }, h('div', { class: 'scroll' + (S.settings.showTs ? '' : ' hide-ts') }, h('table', {}, thead, tbody, rowView.solo ? null : tfoot)), plus));
 }
 
 async function editColumn(tab, col, view) {
@@ -955,7 +1125,8 @@ function renderList(panel, cls, tab) {
   const thead = h('thead', {}, h('tr', {}, h('th', { class: 'name' }, 'Name'),
     tab.columns.map(col => h('th', {}, h('button', { class: 'colbtn', title: 'Spalte bearbeiten', onclick: () => editListColumn(tab, col) },
       col.name, h('small', {}, col.type === 'check' ? 'Abhaken' : 'Notiz'))))));
-  const tbody = h('tbody', {}, cls.students.map(st => h('tr', {}, h('td', { class: 'name' }, nameBtn(st)),
+  const shown = shownStudents(cls);
+  const tbody = h('tbody', {}, shown.map(st => h('tr', {}, h('td', { class: 'name' }, nameBtn(st)),
     tab.columns.map(col => {
       const c = getCell(tab, st.id, col.id);
       const ts = h('span', { class: 'ts' }, tsText(c));
@@ -986,7 +1157,9 @@ function renderList(panel, cls, tab) {
   refreshFoot();
   const plus = iconBtn('plus', 'Neue Spalte', () => editListColumn(tab, null));
   plus.classList.add('corner');
-  panel.append(h('div', { class: 'tablewrap' }, h('div', { class: 'scroll' + (S.settings.showTs ? '' : ' hide-ts') }, h('table', {}, thead, tbody, tfoot)), plus));
+  [...tbody.rows].forEach((tr, i) => rowPress(tr, shown[i]));
+  { const banner = soloBanner(cls); if (banner) panel.append(banner); }
+  panel.append(h('div', { class: 'tablewrap' }, h('div', { class: 'scroll' + (S.settings.showTs ? '' : ' hide-ts') }, h('table', {}, thead, tbody, rowView.solo ? null : tfoot)), plus));
 }
 async function editListColumn(tab, col) {
   const isNew = !col;
@@ -1018,11 +1191,6 @@ function download(content, filename, mime) {
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 async function backupDialog() {
-  const tend = h('select', { value: String(S.settings.tendency) },
-    h('option', { value: '0.25' }, '0,25 (2+ = 1,75 · 2− = 2,25)'),
-    h('option', { value: '0.33' }, '0,33 (2+ = 1,67 · 2− = 2,33)'),
-    h('option', { value: '0' }, 'Tendenzen nicht einrechnen'));
-  tend.addEventListener('change', () => { S.settings.tendency = +tend.value; S.settings.m = nowIso(); save(); render(); });
   const info = h('p', { class: 'hint' }, S.lastBackup ? 'Letzte Sicherung: ' + fmtTs(S.lastBackup, true) : 'Noch keine Sicherung erstellt.');
   const file = h('input', { type: 'file', accept: '.json,application/json', onchange: async e => {
     const f = e.target.files[0]; if (!f) return;
@@ -1045,7 +1213,7 @@ async function backupDialog() {
       info.textContent = how === 'merge' ? 'Sicherung zusammengeführt.' : 'Sicherung eingespielt.';
     } catch (err) { info.textContent = 'Fehler: ' + err.message; }
   } });
-  await dlg('Sicherung & Einstellungen', h('div', {},
+  await dlg('Sicherung', h('div', {},
     h('p', { class: 'hint' }, 'Die Daten liegen nur im Browser dieses Geräts. Die Sicherungsdatei z. B. in OneDrive ablegen und auf einem anderen Gerät wieder einspielen.'),
     h('div', { class: 'field' }, h('button', { type: 'button', class: 'primary', onclick: () => {
       S.lastBackup = new Date().toISOString(); save();
@@ -1053,8 +1221,7 @@ async function backupDialog() {
       info.textContent = 'Letzte Sicherung: ' + fmtTs(S.lastBackup, true);
     } }, 'Sicherung herunterladen')),
     field('Sicherung einspielen (zusammenführen oder ersetzen)', file),
-    info,
-    field('Wert von + und − bei der Berechnung', tend)),
+    info),
     [{ label: 'Schließen', primary: true, value: true }]);
 }
 
@@ -1296,13 +1463,13 @@ async function pwDialog(mode) {
 
 /* Nur diese Teile werden abgeglichen; Ansicht und Geräte-Einstellungen bleiben lokal. */
 function strip(s) {
-  return { version: s.version, classes: s.classes, deleted: s.deleted || {}, settings: { tendency: s.settings.tendency, name: s.settings.name, m: s.settings.m } };
+  return { version: s.version, classOrderM: s.classOrderM, classes: s.classes, deleted: s.deleted || {}, settings: { tendency: s.settings.tendency, name: s.settings.name, halfWeights: s.settings.halfWeights, m: s.settings.m } };
 }
 function canon(v) {
   return JSON.stringify(v, (k, x) => x && typeof x === 'object' && !Array.isArray(x)
     ? Object.fromEntries(Object.keys(x).sort().map(key => [key, x[key]])) : x);
 }
-const uiBusy = () => !!document.querySelector('dialog[open]') ||
+const uiBusy = () => !!reorder || !!document.querySelector('dialog[open]') ||
   /^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || '');
 function scheduleSync(ms) { if (!auth) return; clearTimeout(syncTimer); syncTimer = setTimeout(() => sync(), ms); }
 
@@ -1385,7 +1552,7 @@ async function syncDialog() {
     actions.push({ label: 'Jetzt abgleichen', fn: async () => { await sync(true); describe(); return KEEP; } });
   }
   if (auth) actions.unshift({ label: 'Abmelden', cls: 'danger left', value: 'logout' });
-  actions.push({ label: 'Sicherung und Einstellungen', value: 'backup' });
+  actions.push({ label: 'Sicherung', value: 'backup' });
   actions.push({ label: 'Schließen', primary: !actions.some(a => a.primary), value: null });
   const r = await dlg('Automatischer Abgleich', body, actions);
   if (r === 'logout') { auth = null; saveAuth(); clearTimeout(syncTimer); setSync('off'); }
