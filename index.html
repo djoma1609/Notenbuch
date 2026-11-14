@@ -594,7 +594,6 @@ function renderStudents(panel, cls) {
   panel.append(
     h('div', { class: 'bar' },
       h('button', { class: 'primary plus', title: 'Schüler hinzufügen', 'aria-label': 'Schüler hinzufügen', onclick: () => addStudents(cls) }, '+'),
-      h('button', { onclick: () => importStudents(cls) }, 'Namensliste importieren'),
       h('span', { class: 'grow' }),
       h('button', { class: 'small', onclick: () => renameClass(cls) }, 'Klasse umbenennen'),
       h('button', { class: 'small danger', onclick: () => deleteClass(cls) }, 'Klasse löschen')));
