@@ -153,7 +153,7 @@ td.cell input.grade[data-g="5"], td.cell input.grade[data-g="6"] { background: v
 td.cell textarea.txt { display: block; min-width: 220px; min-height: 0; resize: none; overflow: hidden; text-align: left; line-height: 1.35; }
 td.cell input.bad { border-color: var(--bad); color: var(--bad); background: var(--panel); }
 td.cell .ts { display: block; font-size: 10.5px; color: var(--muted); margin-top: 2px; min-height: 13px; white-space: nowrap; }
-.hide-ts .ts { display: none; }
+.hide-ts td.cell .ts { display: none; }
 td.avg { font-variant-numeric: tabular-nums; min-width: 64px; }
 td.calc { color: var(--muted); }
 th.calc, th.final { min-width: 84px; }
@@ -285,7 +285,7 @@ function save() { saveLocal(); markDirty(); }
 function saveLocal() {
   try {
     localStorage.setItem(KEY, JSON.stringify(S));
-    setStatus('Gespeichert ' + new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }));
+    setStatus(S.settings.showTs ? 'Gespeichert ' + new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : 'Gespeichert');
   } catch (e) {
     setStatus('Speichern fehlgeschlagen!');
     alert('Die Daten konnten nicht gespeichert werden: ' + e.message);
@@ -408,7 +408,7 @@ function fmtTs(iso, long) {
     : d.toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 function tsTitle(c) {
-  if (!c) return '';
+  if (!c || !S.settings.showTs) return '';   // Schalter „Zeitstempel anzeigen“ aus: auch kein Hinweis beim Darüberfahren
   return 'Eingetragen: ' + fmtTs(c.t, true) + (c.m !== c.t ? '\nGeändert: ' + fmtTs(c.m, true) : '');
 }
 function tsText(c) {
@@ -978,9 +978,9 @@ async function studentNotes(st) {
   };
   const draw = () => {
     list.replaceChildren(...[...(st.notes || [])].sort((a, b) => b.t.localeCompare(a.t)).map(note => h('li', {},
-      h('div', { class: 'tx' }, h('small', {}, fmtTs(note.t, true)), note.text),
+      h('div', { class: 'tx' }, S.settings.showTs ? h('small', {}, fmtTs(note.t, true)) : null, note.text),
       h('button', { class: 'small danger', title: 'Notiz löschen', onclick: async () => {
-        if (!await confirmDlg('Notiz löschen', 'Diese Notiz vom ' + fmtTs(note.t) + ' löschen?')) return;
+        if (!await confirmDlg('Notiz löschen', S.settings.showTs ? 'Diese Notiz vom ' + fmtTs(note.t) + ' löschen?' : 'Diese Notiz löschen?')) return;
         st.notes = st.notes.filter(x => x !== note); markDeleted(note.id); save(); draw();
       } }, 'Löschen'))));
     if (!noteCount(st)) list.append(h('li', {}, h('div', { class: 'tx hint' }, 'Noch keine Notizen.')));
