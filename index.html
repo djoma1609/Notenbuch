@@ -61,6 +61,7 @@ header.top button:hover { border-color: var(--accent); }
 .hand .dot { position: absolute; border-radius: 50%; background: currentColor; opacity: 0; animation: pop .25s ease-out forwards; }
 header.top h1 { position: relative; }
 .xhat { position: absolute; left: -6px; top: -9px; rotate: -16deg; line-height: 0; pointer-events: none; }
+.testbadge { margin-left: 10px; font: 700 11px ui-rounded, system-ui, sans-serif; letter-spacing: 1px; text-transform: uppercase; background: #d9493d; color: #fff; border-radius: 999px; padding: 3px 9px; vertical-align: middle; }
 /* Reiter verschieben */
 .tabs.reorder button[data-id] { touch-action: none; cursor: grab; opacity: 1 !important; outline: 2px dashed var(--accent); outline-offset: 1px; animation: wiggle .28s ease-in-out infinite alternate; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .tabs.reorder button[data-id]:nth-child(even) { animation-direction: alternate-reverse; }
@@ -285,7 +286,12 @@ button.iconbtn.corner { position: absolute; top: -18px; right: -10px; z-index: 3
 
 <script>
 'use strict';
-const KEY = 'lehrerkalender.v1';
+/* Zwei Seiten aus derselben Datei: die produktive (…/Notenbuch/) und die Testseite (…/Notenbuch-Test/).
+   Die Testseite hat einen eigenen Speicher im Browser und eine eigene Datei in OneDrive,
+   damit sich Testdaten nie mit den echten Noten vermischen. */
+const IS_TEST = location.pathname.toLowerCase().includes('/notenbuch-test/');
+const ENV = IS_TEST ? '.test' : '';
+const KEY = 'lehrerkalender' + ENV + '.v1';
 const XLSX_URL = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
 
 /* ---------- Daten ---------- */
@@ -1458,11 +1464,11 @@ async function backupDialog() {
 
 /* ---------- Automatischer Abgleich mit OneDrive ---------- */
 const CLIENT_ID = '4f8b18df-b021-4eb5-be30-59f8c0ed1fb1';
-const REDIRECT = 'https://djoma1609.github.io/Notenbuch/';
+const REDIRECT = IS_TEST ? 'https://djoma1609.github.io/Notenbuch-Test/' : 'https://djoma1609.github.io/Notenbuch/';
 const AUTH_URL = 'https://login.microsoftonline.com/consumers/oauth2/v2.0/';
 const SCOPE = 'Files.ReadWrite.AppFolder offline_access';
-const FILE_URL = 'https://graph.microsoft.com/v1.0/me/drive/special/approot:/notenbuch-daten.js';
-const AUTH_KEY = 'lehrerkalender.auth', PKCE_KEY = 'lehrerkalender.pkce';
+const FILE_URL = 'https://graph.microsoft.com/v1.0/me/drive/special/approot:/' + (IS_TEST ? 'notenbuch-test-daten.js' : 'notenbuch-daten.js');
+const AUTH_KEY = 'lehrerkalender' + ENV + '.auth', PKCE_KEY = 'lehrerkalender' + ENV + '.pkce';
 const canSync = (location.origin + location.pathname).startsWith(REDIRECT);
 
 function readJson(key) { try { return JSON.parse(localStorage.getItem(key)); } catch (e) { return null; } }
@@ -1916,6 +1922,11 @@ const ADVENT = [
   'Frohe Weihnachten! Danke, dass du bist, wie du bist.'
 ];
 const adventText = () => TODAY.getMonth() === 11 && TODAY.getDate() <= 24 ? ADVENT[TODAY.getDate() - 1] : '';
+/* Kennzeichen auf der Testseite, damit sie nicht mit der produktiven verwechselt wird. */
+if (IS_TEST) {
+  document.querySelector('header.top h1').append(h('span', { class: 'testbadge' }, 'Test'));
+  document.title = 'TEST – ' + document.title;
+}
 /* Weihnachtsmütze auf dem „N“ von Notenbuch: vom 1. bis 26. Dezember. */
 if (TODAY.getMonth() === 11 && TODAY.getDate() <= 26) {
   const hat = h('span', { class: 'xhat', 'aria-hidden': 'true' });
