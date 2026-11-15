@@ -166,6 +166,9 @@ th .colbtn:hover { background: var(--soft); }
 th .colbtn small { display: block; font-weight: 400; color: var(--muted); font-size: 11px; }
 td.cell { min-width: 84px; }
 td.cell input.grade { width: 56px; text-align: center; padding: 6px 4px; font-weight: 700; border-radius: 10px; }
+.gwrap { display: inline-flex; align-items: center; gap: 6px; }
+button.sig { width: 26px; height: 26px; padding: 0; border-radius: 50%; font-size: 13px; line-height: 1; flex: none; color: transparent; border: 1.5px dashed #b9b4aa; background: transparent; }
+button.sig.on { background: var(--good); border: 1.5px solid var(--good); color: #fff; }
 td.cell input.grade[data-g="1"], td.cell input.grade[data-g="2"] { background: var(--g-good-bg); color: var(--g-good); border-color: transparent; }
 td.cell input.grade[data-g="3"], td.cell input.grade[data-g="4"] { background: var(--g-mid-bg); color: var(--g-mid); border-color: transparent; }
 td.cell input.grade[data-g="5"], td.cell input.grade[data-g="6"] { background: var(--g-low-bg); color: var(--g-low); border-color: transparent; }
@@ -1220,13 +1223,14 @@ function renderGrades(panel, cls, tab) {
   const footCells = {};
   const defFoot = defs.map(() => h('td', {}));
   const refreshFoot = () => {
-    for (const col of cols) footCells[col.id].textContent = fmtOpt(colAvg(tab, col, cls.students));
+    for (const col of cols) footCells[col.id].textContent = fmtOpt(colAvg(tab, col, cls.students)) +
+      (col.sign ? ' · ✓ ' + cls.students.filter(s => getCell(tab, s.id, col.id + ':s')).length + '/' + cls.students.length : '');
     defs.forEach((d, i) => { defFoot[i].textContent = fmtOpt(meanOf(cls.students.map(s => d.get(s.id)))); });
   };
   const thead = h('thead', {}, h('tr', {},
     nameHead(),
     cols.map(col => h('th', {}, h('button', { class: 'colbtn', title: 'Leistung bearbeiten', onclick: () => editColumn(tab, col, view) },
-      col.name, h('small', {}, catName(col.catId) + (col.factor !== 1 ? ' · ×' + String(col.factor).replace('.', ',') : '')), createdNote(col)))),
+      col.name, h('small', {}, catName(col.catId) + (col.factor !== 1 ? ' · ×' + String(col.factor).replace('.', ',') : '') + (col.sign ? ' · Unterschrift' : '')), createdNote(col)))),
     defs.map(d => h('th', { class: d.final ? 'final' : 'calc' }, d.label, d.sub ? h('small', {}, d.sub) : null))));
   const shown = shownStudents(cls);
   const tbody = h('tbody', {}, shown.map(st => {
@@ -1255,7 +1259,21 @@ function renderGrades(panel, cls, tab) {
           const next = list[list.indexOf(inp) + 1];
           if (next) { next.focus(); next.select(); } else inp.blur();
         });
-        return h('td', { class: 'cell' }, inp, ts);
+        // Unterschrift je Schüler abhaken (nur wenn für diese Leistung eingeschaltet).
+        // Gespeichert als eigene Zelle „<Spalte>:s“, damit die Note selbst nicht als geändert gilt.
+        let sig = null;
+        if (col.sign) {
+          const key = col.id + ':s';
+          sig = h('button', { class: 'sig', type: 'button', 'aria-label': 'Unterschrift ' + col.name + ' – ' + st.name }, '✓');
+          const paint = () => {
+            const s = getCell(tab, st.id, key);
+            sig.classList.toggle('on', !!s); sig.setAttribute('aria-pressed', String(!!s));
+            sig.title = s ? 'Unterschrift liegt vor' + (S.settings.showTs ? ' (' + fmtTs(s.m) + ')' : '') : 'Unterschrift fehlt noch';
+          };
+          sig.addEventListener('click', () => { setCell(tab, st.id, key, getCell(tab, st.id, key) ? null : true); paint(); save(); refreshFoot(); });
+          paint();
+        }
+        return h('td', { class: 'cell' }, h('span', { class: 'gwrap' }, inp, sig), ts);
       }), defTds);
   }));
   const tfoot = h('tfoot', {}, h('tr', {}, h('td', { class: 'name' }, 'Klassenschnitt'),
@@ -1277,6 +1295,7 @@ async function editColumn(tab, col, view) {
   const half = h('select', { value: String(col ? colHalf(col) : (view === 2 ? 2 : 1)) },
     h('option', { value: '1' }, '1. Halbjahr'), h('option', { value: '2' }, '2. Halbjahr'));
   const factor = h('input', { type: 'number', min: '0.1', step: '0.1', value: col ? col.factor : 1 });
+  const sign = h('input', { type: 'checkbox', class: 'switch', role: 'switch', checked: !!(col && col.sign) });
   const actions = [
     { label: 'Abbrechen', value: null },
     { label: isNew ? 'Anlegen' : 'Speichern', primary: true, fn: () => (name.value.trim() && +factor.value > 0) ? 'ok' : KEEP }
@@ -1285,6 +1304,7 @@ async function editColumn(tab, col, view) {
   const r = await dlg(isNew ? 'Neue Leistung' : 'Leistung bearbeiten',
     h('div', {}, field('Bezeichnung', name),
       field('Zählt zu (z. B. ein Referat zu den Klassenarbeiten)', cat),
+      h('label', { class: 'switchrow' }, h('span', {}, 'Unterschrift abhaken', h('small', {}, 'Je Schüler einen Haken setzen, sobald die Unterschrift vorliegt')), sign),
       field('Halbjahr', half),
       field('Gewichtung innerhalb des Bereichs (z. B. 2 = zählt doppelt)', factor)), actions);
   if (!r) return;
@@ -1292,11 +1312,11 @@ async function editColumn(tab, col, view) {
     if (!await confirmDlg('Leistung löschen', '„' + col.name + '“ mit allen eingetragenen Noten löschen?')) return;
     tab.columns = tab.columns.filter(c => c !== col);
     markDeleted(col.id);
-    Object.values(tab.cells).forEach(cells => { delete cells[col.id]; });
+    Object.values(tab.cells).forEach(cells => { delete cells[col.id]; delete cells[col.id + ':s']; });
   } else if (isNew) {
-    tab.columns.push({ id: uid(), name: name.value.trim(), catId: cat.value, half: +half.value, factor: +factor.value, created: nowIso(), m: nowIso() });
+    tab.columns.push({ id: uid(), name: name.value.trim(), catId: cat.value, half: +half.value, factor: +factor.value, sign: sign.checked, created: nowIso(), m: nowIso() });
   } else {
-    col.name = name.value.trim(); col.catId = cat.value; col.half = +half.value; col.factor = +factor.value; col.m = nowIso();
+    col.name = name.value.trim(); col.catId = cat.value; col.half = +half.value; col.factor = +factor.value; col.sign = sign.checked; col.m = nowIso();
   }
   save(); render();
 }
