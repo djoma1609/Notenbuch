@@ -169,6 +169,8 @@ td.cell input.grade { width: 56px; text-align: center; padding: 6px 4px; font-we
 .gwrap { display: inline-flex; align-items: center; gap: 6px; }
 button.sig { width: 26px; height: 26px; padding: 0; border-radius: 50%; font-size: 13px; line-height: 1; flex: none; color: transparent; border: 1.5px dashed #b9b4aa; background: transparent; }
 button.sig.on { background: var(--good); border: 1.5px solid var(--good); color: #fff; }
+td.cell .sigts { color: var(--good); min-height: 0; margin-top: 0; }
+td.cell .sigts:empty { display: none; }
 td.cell input.grade[data-g="1"], td.cell input.grade[data-g="2"] { background: var(--g-good-bg); color: var(--g-good); border-color: transparent; }
 td.cell input.grade[data-g="3"], td.cell input.grade[data-g="4"] { background: var(--g-mid-bg); color: var(--g-mid); border-color: transparent; }
 td.cell input.grade[data-g="5"], td.cell input.grade[data-g="6"] { background: var(--g-low-bg); color: var(--g-low); border-color: transparent; }
@@ -1261,19 +1263,21 @@ function renderGrades(panel, cls, tab) {
         });
         // Unterschrift je Schüler abhaken (nur wenn für diese Leistung eingeschaltet).
         // Gespeichert als eigene Zelle „<Spalte>:s“, damit die Note selbst nicht als geändert gilt.
-        let sig = null;
+        let sig = null, sigTs = null;
         if (col.sign) {
           const key = col.id + ':s';
           sig = h('button', { class: 'sig', type: 'button', 'aria-label': 'Unterschrift ' + col.name + ' – ' + st.name }, '✓');
+          sigTs = h('span', { class: 'ts sigts' });
           const paint = () => {
             const s = getCell(tab, st.id, key);
             sig.classList.toggle('on', !!s); sig.setAttribute('aria-pressed', String(!!s));
             sig.title = s ? 'Unterschrift liegt vor' + (S.settings.showTs ? ' (' + fmtTs(s.m) + ')' : '') : 'Unterschrift fehlt noch';
+            sigTs.textContent = s ? '✓ ' + fmtTs(s.m) : '';
           };
           sig.addEventListener('click', () => { setCell(tab, st.id, key, getCell(tab, st.id, key) ? null : true); paint(); save(); refreshFoot(); });
           paint();
         }
-        return h('td', { class: 'cell' }, h('span', { class: 'gwrap' }, inp, sig), ts);
+        return h('td', { class: 'cell' }, h('span', { class: 'gwrap' }, inp, sig), ts, sigTs);
       }), defTds);
   }));
   const tfoot = h('tfoot', {}, h('tr', {}, h('td', { class: 'name' }, 'Klassenschnitt'),
