@@ -1865,6 +1865,24 @@ const HOUR = (() => {
   const q = new URLSearchParams(location.search).get('uhrzeit');
   return q !== null && q !== '' && +q >= 0 && +q <= 23 ? Math.floor(+q) : new Date().getHours();
 })();
+/* Zum Abend hin werden auch die Flächen der Seite (Hintergrund, Tabelle, Kopfzeilen, Linien)
+   stufenweise etwas dunkler. Die Schrift bleibt dunkel und gut lesbar. */
+const DAY_TONES = [
+  // [ab Stunde, Hintergrund, Fläche, Tabellenkopf, Linie]
+  [6, '', '', '', ''],                                    // Tag: die normalen hellen Farben
+  [16, '#f6f2ec', '#fcfaf7', '#f3eee7', '#e6dfd5'],
+  [18, '#eee8df', '#f6f2eb', '#ece6dc', '#ded6ca'],
+  [20, '#e3ddd4', '#ede8df', '#e2dbd0', '#d3cabd'],
+  [22, '#d4d2d9', '#e1dfe5', '#d6d3db', '#c5c2cc']        // Nacht: kühler, ins Blau-Graue
+];
+function applyDayTone() {
+  const t = HOUR < 6 ? DAY_TONES[4] : [...DAY_TONES].reverse().find(x => HOUR >= x[0]);
+  const st = document.documentElement.style;
+  ['--bg', '--panel', '--head', '--line'].forEach((name, i) => { if (t[i + 1]) st.setProperty(name, t[i + 1]); else st.removeProperty(name); });
+  const meta = document.querySelector('meta[name=theme-color]');
+  if (meta) meta.content = t[1] || '#ffffff';
+}
+applyDayTone();
 const TODAY = (() => {
   const q = new URLSearchParams(location.search).get('datum');
   const d = q ? new Date(q + 'T12:00:00') : null;
